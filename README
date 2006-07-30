@@ -1,0 +1,15 @@
+NAME
+    CFPlus - undocumented utility garbage for our crossfire client
+
+SYNOPSIS
+     use CFPlus;
+
+DESCRIPTION
+    guard { BLOCK }
+        Returns an object that executes the given block as soon as it is
+        destroyed.
+
+AUTHOR
+     Marc Lehmann <schmorp@schmorp.de>
+     http://home.schmorp.de/
+

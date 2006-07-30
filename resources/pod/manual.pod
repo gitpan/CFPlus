@@ -1,0 +1,139 @@
+=head1 CFPlus Manual
+
+=head2 Features
+
+=over 4
+
+=item Fullscreen Map
+
+CF+ can uses a fullscreen map, which greatly enhances how much of the
+game world you can see.
+
+=item Persistent Map Cache (Crossfire+ only)
+
+CF+ can persistently cache all map data it received from the
+server. This not only allows it to display an overview map, but also
+ensures that once-explored areas will be available the next time you want
+to explore more.
+
+=item Hardware acceleration
+
+Unlike most Crossfire clients, CF+ take advantage of OpenGL hardware
+acceleration. Most modern graphics cards have difficulties with 2D
+acceleration, while 3D graphics is accelerated well.
+
+=item No arbitrary limits
+
+Unlike other Crossfire clients, CF+ does not suffer from arbitrary
+limits (like a fixed amount of face numbers). There are still limits, but
+they are not arbitrarily low :)
+
+=item High quality text rendering
+
+Although surprising at first, high quality text rendering is a real
+must have feature.  For this, CF+ leverages Παν語 (PanGo) to offer
+real-world text output quality, so you can chat in 日本語 (japanese),
+ﺎﻠﻋﺮﺒﻳﺓ (arabic) or most any other language/script, as long
+as suitable fonts are installed.
+
+=back
+
+=head1 Usage
+
+=head2 The Map
+
+The map is always displayed in the background, behind all other windows and UI elements.
+
+#TODO# middle-click scrolls
+#
+# keys:
+#
+# a apply
+# keypad moves, kp_5 applies ranged attack to self
+
+Starting to type enters the I<completion mode>. In that mode, you can type
+abbreviations or commands and have them executed as soon as they match a
+valid command. This is best explained by a few examples:
+
+Typing B<climb> will display a list of commands with I<climb> in their
+name, such as I<ready_skill climbing> and I<use_skill climbing>.
+
+You can abbreviate commands by typing only the first character of every
+word (or even characters within the word - the client will try to make
+a good guess, as long as the characters are in order). For example,
+typing I<iwor> will likely select I<invoke word of recall>, while I<ccfo>
+will select I<cast create food>. Likewise, I<rscli> will likely select
+I<ready_skill climbing> and I<usl> will give you I<use_skill levitation>.
+
+You can enter space and other text as arguemnt to the command. For
+example, C<cfoo waybread> will expand to C<cast create food waybread>.
+
+=head2 The map overview
+
+This is the small mini map in the upper left corner. It displays the areas which
+you already visited before.
+
+=head2 The Status area in the lower right corner
+
+The area in the lower right corner displays the most interesting
+stats while playing. The 4 gauges: Health, Mana/Spellpoints,
+Grace and Food. The top of each gauge shows the current value
+and the bottom value is the maximum value.
+
+Going over each gauge with the mouse cursor will show a tooltip
+with a detailed explanation of each stat.
+
+Below the gauges there is a line that looks like this:
+
+   Exp: ######## (lvl ####)
+
+The former number are the experience points and the number in the parents
+is the level of your character.
+The level of the character depends on the experience points you have.
+If the experience points reach a certain value your level rises or falls.
+This depends on the experience table of the server you are currently playing on.
+
+On the bottom there is a line:
+
+   Rng: xxxxxxxxx
+
+It tells you have you have in your range slot. The range slot is activated
+if you "fire" (by pressing ctrl+direction key). For example there could be a spell
+in your range slot or a weapon (like a bow) you will fire with.
+
+=head2 The Floorbox
+
+Right to the left of the status area there is the floorbox.
+It displays what is on the tile your character stands on. If there are very many
+items there will be a "More..." button which will open up the Inventory.
+
+If you opened a container a button "Close container" will show up.
+
+=head1 FAQ
+
+=over 4
+
+=item The client is very sluggish and slow, what can I do about this?
+
+Most likely, you don't have accelerated OpenGL support. Try to find a
+newer driver, or a driver from your hardware vendor, that features OpenGL
+support.
+
+If this is not an option, the following Setup options reduce the load and
+will likely make the client playable with software rendering (it will
+still be slow, though):
+
+=over 4
+
+=item B<Video Mode> should be set as low as possible (e.g. 640x480)
+
+=item Enable B<Fast & Ugly> mode
+
+=item Disable B<Fog of War>
+
+=item Increase B<Map Scale>
+
+=back
+
+=back
+

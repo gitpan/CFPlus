@@ -1,0 +1,7 @@
+uint8_t *		T_PV
+uint32_t *		T_PV
+CFPlus::MixChunk	T_PTROBJ
+CFPlus::MixMusic	T_PTROBJ
+CFPlus::Font		T_PTROBJ
+CFPlus::Layout	T_PTROBJ
+CFPlus::Map		T_PTROBJ

@@ -1,0 +1,349 @@
+=head1 Crossfire+ Dungeon Master Commands
+
+The following commands are only available to you if you are dungeon
+master, that is, a kind of server administrator with special privileges.
+
+=head2 abil
+
+   abil <player> <attribute> <value> 
+
+abil will permanently change the ability scores of players. Attribute is
+one of str, dex, con, int, wis, pow, cha. Value may not exceed 30.
+
+=head2 addexp
+
+   addexp <player> <how much> 
+
+The player must have a skill readied. All experience added in this manner
+will go directly to the skill readied.
+
+=head2 banish
+
+   banish <player> 
+
+I<Kicks> the named player and adds their current IP address to the banish
+file.  This will prevent the named player from logging into the server
+(from their current IP). This is an in-game version of the ban function
+meant for short term relief of persistant goons and for DMs who do not
+have shell access. It is probably a good idea to clear out the banish file
+(usually at F</var/crossfire/banish_file>) on a regular basis and delete
+or move any entries to the ban_file if desired.
+
+=head2 create
+
+   create <number> <bonus> <archtype> <variable1> <value1> <variable2> <value2> ...  
+
+Creating items is rather dangerous and tends to crash the server when
+creating some items.
+
+The number and bonus attributes may be left off, or the bonus itself may
+be left off any time.  If a bonus is desired, number must be specified as
+well.  Archtype must be specified in all cases. Variable and values may be
+left off at any time, but specifiying a variable requires a value also be
+specified.
+
+Multipart values such as for an item name must be quoted.
+
+Example:
+
+   create 5 +1 sword name "Spiffy Sword" face chicken.171
+
+This would create 5 +1 longswords named 'Spiffy Sword' that look like
+chickens. See also: patch, dump
+
+=head2 debug
+
+   debug <level> 
+
+Without arguments, debug will simply print the current level of
+debugging. Valid debugging levels are 0-3 where: llevError = 0, llevInfo =
+1, llevDebug = 2, llevMonster = 3
+
+=head2 dump
+
+   dump <tag> 
+
+Using dump, you can see the attributes of any item in the game.  To find
+the object number of an item you wish to view, click on it. If this item
+is in your inventory, or you are standing over, click on yourself and the
+item tags will be displayed. see also: patch
+
+=head2 dumpallarchtypes
+
+   dumpallarchtypes 
+ 
+This prints out a list of all archtypes to stderr.
+
+=head2 dumpallmaps
+
+   dumpallmaps 
+
+This prints out map information for all active maps to stderr.
+
+=head2 dumpallobjects
+
+   dumpallobjects 
+
+This prints out a list of all active objects to stderr.
+
+=head2 dumpbelow
+
+   dumpbelow 
+
+Will dump the attributes of the top item you are standing over. see also:
+dump
+
+=head2 dumpfriendlyobjects
+
+   dumpfriendlyobjects
+
+This prints out a list of all active friendly objects to stderr.
+
+=head2 forget_spell
+
+   forget_spell <spell name>
+
+This will cause you to permanently lose knowledge of a spell.
+
+=head2 free
+
+   free <tag> 
+
+C<free> should ONLY be used after remove.  Freeing an object that has
+not been removed will cause the game to crash. For most objects, simply
+removing them is sufficient and they will eventually be freed.  See Also:
+remove
+
+=head2 goto
+
+   goto <mapname> 
+
+Using this command will instantly move you to the start point of the map
+specified.
+
+=head2 hide
+
+   hide
+
+This hides the DM from being seen by other players.  This is done by
+making the player perpetually invisible.  It also results in the player
+not showing up in the who command, maps comamnd, or being reported as a
+player on the metaserver.
+
+Note that the DM can still do things that makes his presence known, eg,
+shout, other DM actions, etc.
+
+=head2 insert_into
+
+   insert_into <item> <item>
+
+This will insert the 2nd item in the first.  2nd can't be a player.
+
+=head2 invisible
+
+   invisible 
+
+Makes you invisible for a short time.
+
+=head2 kick
+
+   kick <player> 
+
+This command will kick a player off the server. If used without an
+argument, it will kick all players off the server with the exception of
+you.
+
+=head2 learn_special_prayer
+
+   learn_special_prayer <prayer name>
+
+this will allow you to permanently learn a spell as a special prayer of
+your god. see also: learn_spell
+
+=head2 learn_spell
+
+   learn_spell <spell name>
+
+This will allow you to permanently learn a spell. <spell name> may be a
+partial spell name.
+
+It is similar to learn_special_prayer except that you will retain
+knowledge of this spell regardless of changing dieties. see also:
+learn_special_prayer
+
+=head2 mon_aggr
+
+   mon_aggr
+
+Toggles the aggression of the monster you are currently possessing. Not
+reccomended to be flipped on yourself as a player.
+
+=head2 nodm
+
+   nodm or nowiz 
+
+Both of these commands will return you to normal player status.
+
+=head2 nowiz
+
+   nodm or nowiz 
+
+Both of these commands will return you to normal player status.
+
+=head2 overlay_save
+
+   overlay_save 
+
+This will save everything on the current map that was not originally part
+of it as an overlay. The overlay will then be loaded anytime the map
+itself is loaded.  Be careful with this as EVERYTHING on the map will be
+saved in an overlay, such as spawned monsters and dropped objects.
+
+=head2 patch
+
+   patch <tag> <variable> <value> 
+
+Using the patch command, you can radically modify the properties of
+objects in the game. Simply specify the object to modify and the new
+values of its variables (or completely new variables).  See Also: dump
+
+=head2 perl-reload
+
+Will first unload all loaded perl extensions and modules loaded from the
+extension directory, followed by loading the perl part of the plugin and
+all extensions found.
+
+This is done in an as atomic way as possible so it is safe to do at
+anytime.
+
+=head2 plugin
+
+   plugin <plugin name>
+
+This will load a new plugin into memory. Using this with no arguments,
+or invalid arguments will cause a server crash. Plugin name should be as
+it appears in your plugin directory. Double check the names before using
+plugins.
+
+=head2 pluglist
+
+   pluglist 
+
+This shows currently loaded plugins.
+
+=head2 plugout
+
+   plugout <plugin name>
+
+This will remove a loaded plugin from memory.
+
+=head2 possess
+
+   possess (nr)
+
+Take over the body of a given monster. It is not suggested you try to
+possess another player, as bad things will undoubtably happen. Allows DM
+to control the monster directly with his client.
+
+=head2 printlos
+
+   printlos 
+
+This is used for line of sight debugging.
+
+=head2 remove
+
+   remove <tag> 
+
+C<remove> will, suprisingly enough, remove the object specified by the tag
+supplied. see also: free
+
+=head2 reset
+
+   reset <mapname> 
+
+All other characters must be off of the map at the time of reset. This
+will NOT reset any unique items, such as players apartments, in the case
+of unique items being on a map, it will cause them to be saved before the
+map is reset.
+
+Using C<reset .> will reset the map that the player is currently on.
+
+=head2 server_speed
+
+   server_speed [newspeed] 
+
+Without arguments, this prints current server speed. If given an argument,
+it will set server speed to the new speed.
+
+=head2 set_god
+
+   set_god <player> <diety>
+
+This will change a players diety to the diety specified.
+
+=head2 shutdown
+
+   shutdown 
+
+This will cause a Crossfire+ to shut down entirely by first kicking out
+all players, saving all maps and finally exiting. Crossfire servers will
+kick out players and might or might not save some players or maps.
+
+=head2 spellreset
+
+   spellreset 
+
+This causes the spell table to be reinitialized.
+
+=head2 ssdumptable
+
+   ssdumptable 
+
+This will print out the current hash table to stderr.
+
+=head2 stats
+
+   stats <player>
+
+This displays the named players statistics.
+
+=head2 style_info
+
+   style_info 
+
+This will print out information regarding current styles in use.
+
+=head2 summon
+
+   summon <player> 
+
+Summoning a player will bring them immediately to your location.  There
+is no 'reverse' summoning, except to go to a map yourself and summon the
+player again.
+
+=head2 teleport
+
+   teleport <player> 
+
+C<teleport> will bring you immediately next to the player's location.
+
+=head2 toggle_shout
+
+   toggle_shout <player> 
+
+Will toggle the no_shout bit for the named player.  This will prevent or
+enable the player to use the shout command.
+
+=head2 wizcast
+
+   wizcast [<on_off>]
+
+This will enable/disable your ability to cast spells and prayers anywhere
+as dm. Without argument it toggles between on and off.
+
+=head2 wizpass
+
+   wizpass 
+
+This will toggle on and off your ability to walk thru walls as dm.

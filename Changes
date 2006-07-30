@@ -1,0 +1,5 @@
+Revision history for Perl extension Crossfire-Client
+ 
+0.01  Thu Apr  6 16:30:28 CEST 2006
+	- original version; cloned from PLIB::PUI
+
