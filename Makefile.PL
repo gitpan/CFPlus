@@ -38,7 +38,7 @@ EOF
 
 WriteMakefile(
     dist	=> {
-	            PREOP	=> 'pod2text CFPlus.pm | tee README >$(DISTVNAME)/README; chmod -R u=rwX,go=rX . ;',
+	            PREOP	=> 'pod2text bin/cfplus | tee README >$(DISTVNAME)/README; chmod -R u=rwX,go=rX . ;',
 	            COMPRESS	=> 'gzip -9v',
 	            SUFFIX	=> '.gz',
 	           },

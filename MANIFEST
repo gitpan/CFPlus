@@ -12,6 +12,7 @@ CFPlus/Protocol.pm
 CFPlus/Texture.pm
 CFPlus/OpenGL.pm
 CFPlus/UI.pm
+CFPlus/Pod.pm
 CFPlus/MapWidget.pm
 CFPlus/BindingEditor.pm
 glfunc.h

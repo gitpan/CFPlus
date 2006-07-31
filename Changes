@@ -1,4 +1,7 @@
 Revision history for Perl extension Crossfire-Client
+
+0.2   Mon Jul 31 13:15:40 CEST 2006
+	- fix missing CFPlus/Pod.pm.
  
 0.01  Thu Apr  6 16:30:28 CEST 2006
 	- original version; cloned from PLIB::PUI
