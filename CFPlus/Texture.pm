@@ -86,7 +86,7 @@ sub new_from_file {
 sub new_from_opengl {
    my ($class, $w, $h, $cb) = @_;
 
-   $class->new (w => $w || 1, h => $h || 1, render_cb => $cb)
+   $class->new (w => $w || 1, h => $h || 1, render_cb => $cb, nearest => 1)
 }
 
 sub upload {
@@ -137,7 +137,7 @@ sub upload {
       glTexParameter GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, $GL_VERSION >= 1.2 ? GL_CLAMP_TO_EDGE : GL_CLAMP;
    }
 
-   if ($::FAST) {
+   if ($::FAST || $self->{nearest}) {
       glTexParameter GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST;
       glTexParameter GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST;
    } elsif ($self->{mipmap} && $GL_VERSION >= 1.4) {

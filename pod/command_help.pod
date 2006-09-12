@@ -1,4 +1,15 @@
-=head1 Crossfire+ Command Listing
+=begin comment
+
+***
+*** WARNING:
+*** This file resides in both CFPlus/pod/ and server/pod/
+*** Only ever edit the version in CFPlus/pod/ and run
+*** ./copy_pod inside server/pod/ to update that copy.
+***
+
+=end
+
+=head1 Crossfire+ Command ListingX<command>
 
 =head2 accept-invitation
 
@@ -26,7 +37,7 @@ Extra options to apply:
 
 These two options disable the toggling feature.
 
-=head2 applymode (nochoice|never|always)
+=head2 X<applymode>applymode (nochoice|never|always)
 
 Applymode controls what happens when you are equipping something that would
 require something else to be unequipped.
@@ -67,7 +78,7 @@ If your character is currently wearing a suit of armor, and you try to
 equip another suit, both B<nochoice> and B<always> will cause the new suit
 to get equipped.
 
-See L<apply>.
+See L<apply|command/apply>.
 
 =head2 body
 
@@ -75,7 +86,7 @@ Shows how much you are wielding on certain bodyparts. For example as
 fireborn, you have 4 fingers to put rings on. If you have 3 rings on it will
 say: "on your finger  3 1", meaning you have 3 fingers full and one free.
 
-=head2 bowmode (normal|threewide|spreadshot|bestarrow|.*)
+=head2 X<bowmode>bowmode (normal|threewide|spreadshot|bestarrow|.*)
 
 Bowmode controls how you will fire arrows and bolts.
 
@@ -121,8 +132,8 @@ for killing creatures, and incure a 4 point wc (to hit) penalty.
 
    chat <message>
 
-Sends a message to all players on the server that have L<listen> level
-B<10> or higher.
+Sends a message to all players on the server that have
+L<listen|command/listen> level B<10> or higher.
 
 =head2 cast
 
@@ -139,7 +150,7 @@ It is helpful to bind string like B<cast burning hands> to keys.
 
 See B<range> for more information on range weapons.
 
-=head2 drop (all|unpaid|cursed|unlocked|.*)
+=head2 X<drop>drop (all|unpaid|cursed|unlocked|.*)
 
    drop [number] name
 
@@ -195,7 +206,7 @@ Drops all objects except food, money, keys, and containers.
 Drops weapons, bows, and arrows.
 
 =item B<armor> (armour)
-   
+
 Drops armor, shield, and helmets.
 
 =item B<misc>
@@ -283,6 +294,10 @@ Shows a list of the highest level players in the game.
 
 =head2 ignore
 
+   ignore list
+
+Lists all players that you currently ignore.
+
    ignore <player> <tell|shout|all> [timeout]
 
 This command ignores the specified messages (B<tell> ignores tells,
@@ -295,10 +310,6 @@ after a day by default is that most troublemakers stop soon after they are
 being ignored.
 
 To revoke an ignore, use the B<unignore> command.
-
-=head2 ignore list
-
-Lists all players that you currently ignore.
 
 =head2 inventory
 
@@ -626,7 +637,7 @@ Damage done by area effect attacks like cone spells, explosive
 detonations, fireballs, poisons, cloud or swarm attacks, runes or disease
 are not modified by peaceful/hostile mode.
 
-=head2 petmode (normal|sad|defend|arena)
+=head2 X<petmode>petmode (normal|sad|defend|arena)
 
 B<petmode> controls how your pets (charmed monsters) will behave.
 
@@ -691,7 +702,7 @@ The same as cast. Usage:
 
    prepare <spell>
 
-=head2 quests (|finished|.*)
+=head2 X<quests>quests (|finished|.*)
 
 The quests command lists the quests you are doing or have completed.
 
@@ -721,6 +732,17 @@ bow-and-arrow, a rod, or a wand, to name a few.
 
 Your range weapon is fired when you press SHIFT-direction, and will be
 fired in that direction.
+
+=head2 ready_skill
+
+   ready_skill <name of skill>
+
+Readies the given L<skill|pod/skill_help> by putting it in your L<range
+slot|glossary/range slot>. Some skills are used automatically when
+readied, some need to be actively used by "firing" them.
+
+If you just want to invoke a skill once, leaving your range slot
+untouched, use L<use_skill> instead.
 
 =head2 rename
 
@@ -806,10 +828,10 @@ only).
 
    shout <message>
 
-Sends a message to all players on the server that have L<listen> level
-B<10> or higher. It is mainly useful for emergency messages ("I am trapped
-on xxx, can somebody help me?") and should not be used for general
-chat. Use L<chat> instead.
+Sends a message to all players on the server that have
+L<listen|command/listen> level B<10> or higher. It is mainly useful for
+emergency messages ("I am trapped on xxx, can somebody help me?") and
+should not be used for general chat. Use L<chat|command/chat> instead.
 
 =head2 showpets
 
@@ -958,6 +980,13 @@ open them up. Search by going near where you suspect a trap, and type 's'
 
 Cancels all ignores set for the specified login. See B<ignore>.
 
+=head2 use_skill
+
+   use_skill <name of skill>
+
+Uses the given L<skill|pod/skill_help> immediately, once. See also
+L<ready_skill>.
+
 =head2 usekeys (inventory|keyrings|containers)
 
 The B<usekeys> option determines the behaviour of using keys.
@@ -998,7 +1027,7 @@ Tells you some historical information on the region you are currently in.
 =head2 who
 
 Shows what players are playing in the world and where they are. It may also
-show their levels and race or title. (See the L<title> command)
+show their levels and race or title. (See the L<title|command/title> command)
 
 B<who> optionally takes an argument that limits the players shown to
 the specified region, e.g. B<who brest> will show all players playing

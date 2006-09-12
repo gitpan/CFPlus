@@ -49,7 +49,7 @@ WriteMakefile(
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
        BerkeleyDB    => 0.27,
-       Crossfire     => 0.8,
+       Crossfire     => 0.9,
        Time::HiRes   => 0,
        Event         => 1.01,
        AnyEvent      => 0,
@@ -59,6 +59,7 @@ WriteMakefile(
     depend    => {
        "CFPlus.o" => 'glfunc.h pangoopengl.h pango-font.c pango-fontmap.c pango-render.c texcache.c',
     },
+    clean     => { FILES => 'docwiki.pst' },
     PM => {
        'CFPlus.pm'                    => '$(INST_LIBDIR)/CFPlus.pm',
        'CFPlus/Protocol.pm'           => '$(INST_LIBDIR)/CFPlus/Protocol.pm',
@@ -68,6 +69,27 @@ WriteMakefile(
        'CFPlus/Pod.pm'                => '$(INST_LIBDIR)/CFPlus/Pod.pm',
        'CFPlus/MapWidget.pm'          => '$(INST_LIBDIR)/CFPlus/MapWidget.pm',
        'CFPlus/BindingEditor.pm'      => '$(INST_LIBDIR)/CFPlus/BindingEditor.pm',
+       'docwiki.pst'                  => '$(INST_LIBDIR)/CFPlus/resources/docwiki.pst',
        (map +($_ => "\$(INST_LIBDIR)/CFPlus/$_"), manifest_resources),
     }
 );
+
+sub MY::postamble {
+   my $self = shift;
+
+   # try to add MANIFEST to CONFIGDEP
+   s/^CONFIGDEP = /CONFIGDEP = MANIFEST /m
+      for @{ $self->{RESULT} };
+
+   my $pods = join " ", <pod/*.pod>;
+
+   <<EOF
+
+all :: docwiki.pst
+
+docwiki.pst: bin/pod2wiki $pods
+	\$(PERL) -Mlib=. bin/pod2wiki $pods
+
+EOF
+}
+

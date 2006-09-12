@@ -8,6 +8,7 @@ use List::Util ();
 use Event;
 
 use CFPlus;
+use CFPlus::Pod;
 use CFPlus::Texture;
 
 our ($FOCUS, $HOVER, $GRAB); # various widgets
@@ -910,8 +911,6 @@ sub render_child {
 sub _draw {
    my ($self) = @_;
 
-   my ($w, $h) = @$self{qw(w h)};
-
    my $tex = $self->{texture}
       or return;
 
@@ -919,7 +918,7 @@ sub _draw {
    glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE;
    glColor 0, 0, 0, 1;
 
-   $tex->draw_quad_alpha_premultiplied (0, 0, $w, $h);
+   $tex->draw_quad_alpha_premultiplied (0, 0);
 
    glDisable GL_TEXTURE_2D;
 }
@@ -1130,6 +1129,106 @@ sub _draw {
 #############################################################################
 
 package CFPlus::UI::FancyFrame;
+
+our @ISA = CFPlus::UI::Bin::;
+
+use CFPlus::OpenGL;
+
+sub new {
+   my ($class, %arg) = @_;
+
+   if ((exists $arg{label}) && !ref $arg{label}) {
+      $arg{label} = new CFPlus::UI::Label
+         align    => 1,
+         valign   => 0,
+         text     => $arg{label},
+         fontsize => ($arg{border} || 0.8) * 0.75;
+   }
+
+   my $self = $class->SUPER::new (
+      # label     => "",
+      fg          => [0.6, 0.3, 0.1],
+      border      => 0.8,
+      style       => 'single',
+      %arg,
+   );
+
+   $self
+}
+
+sub add {
+   my ($self, @widgets) = @_;
+
+   $self->SUPER::add (@widgets);
+   $self->CFPlus::UI::Container::add ($self->{label}) if $self->{label};
+}
+
+sub border {
+   int $_[0]{border} * $::FONTSIZE
+}
+
+sub size_request {
+   my ($self) = @_;
+
+   ($self->{label_w}, undef) = $self->{label}->size_request
+      if $self->{label};
+
+   my ($w, $h) = $self->SUPER::size_request;
+
+   (
+      $w + $self->border * 2,
+      $h + $self->border * 2,
+   )
+}
+
+sub invoke_size_allocate {
+   my ($self, $w, $h) = @_;
+
+   my $border = $self->border;
+
+   $w -= List::Util::max 0, $border * 2;
+   $h -= List::Util::max 0, $border * 2;
+
+   if (my $label = $self->{label}) {
+      $label->{w} = List::Util::max 0, List::Util::min $self->{label_w}, $w - $border * 2;
+      $label->{h} = List::Util::min $h, $border;
+      $label->invoke_size_allocate ($label->{w}, $label->{h});
+   }
+
+   $self->child->configure ($border, $border, $w, $h);
+
+   1
+}
+
+sub _draw {
+   my ($self) = @_;
+
+   my $child = $self->{children}[0];
+
+   my $border = $self->border;
+   my ($w, $h) = ($self->{w}, $self->{h});
+
+   $child->draw;
+
+   glColor @{$self->{fg}};
+   glBegin GL_LINE_STRIP;
+   glVertex $border * 1.5      , $border * 0.5 + 0.5;
+   glVertex $border * 0.5 + 0.5, $border * 0.5 + 0.5;
+   glVertex $border * 0.5 + 0.5, $h - $border * 0.5 + 0.5;
+   glVertex $w - $border * 0.5 + 0.5, $h - $border * 0.5 + 0.5;
+   glVertex $w - $border * 0.5 + 0.5, $border * 0.5 + 0.5;
+   glVertex $self->{label} ? $border * 2 + $self->{label}{w} : $border * 1.5, $border * 0.5 + 0.5;
+   glEnd;
+
+   if ($self->{label}) {
+      glTranslate $border * 2, 0;
+      $self->{label}->_draw;
+   }
+}
+
+#############################################################################
+
+package CFPlus::UI::Toplevel;
 
 our @ISA = CFPlus::UI::Bin::;
 
@@ -1619,6 +1718,7 @@ sub new {
       #text      => initial text
       #markup    => initial narkup
       #max_w     => maximum pixel width
+      #style     => 0, # render flags
       ellipsise  => 3, # end
       layout     => (new CFPlus::Layout),
       fontsize   => 1,
@@ -1779,7 +1879,7 @@ sub _draw {
    my $w = List::Util::min $self->{w} + 4, $size->[0];
    my $h = List::Util::min $self->{h} + 2, $size->[1];
 
-   $self->{layout}->render ($self->{ox}, $self->{oy});
+   $self->{layout}->render ($self->{ox}, $self->{oy}, $self->{style});
 }
 
 #############################################################################
@@ -1868,6 +1968,9 @@ sub invoke_key_down {
       $self->{cursor} = 0;
    } elsif ($sym == CFPlus::SDLK_END) {
       $self->{cursor} = length $text;
+   } elsif ($uni ==  21) { # ctrl-u
+      $text = "";
+      $self->{cursor} = 0;
    } elsif ($uni == 27) {
       $self->emit ('escape');
    } elsif ($uni) {
@@ -1950,10 +2053,9 @@ sub _draw {
          @$self{qw(cur_x cur_y cur_h)} = $self->{layout}->cursor_pos (length $text)
       }
 
-      glColor @{$self->{fg}};
       glBegin GL_LINES;
-      glVertex $self->{cur_x} + $self->{ox}, $self->{cur_y} + $self->{oy};
-      glVertex $self->{cur_x} + $self->{ox}, $self->{cur_y} + $self->{oy} + $self->{cur_h};
+      glVertex 0.5 + $self->{cur_x} + $self->{ox}, $self->{cur_y} + $self->{oy};
+      glVertex 0.5 + $self->{cur_x} + $self->{ox}, $self->{cur_y} + $self->{oy} + $self->{cur_h};
       glEnd;
    }
 }
@@ -2753,6 +2855,21 @@ sub set_offset {
    $self->{children}[1]->set_value ($offset);
 }
 
+sub current_paragraph {
+   my ($self) = @_;
+
+   $self->{top_paragraph} - 1
+}
+
+sub scroll_to {
+   my ($self, $para) = @_;
+
+   $para = List::Util::max 0, List::Util::min $#{$self->{par}}, $para;
+
+   $self->{scroll_to} = $para;
+   $self->update;
+}
+
 sub clear {
    my ($self) = @_;
 
@@ -2789,8 +2906,41 @@ sub add_paragraph {
 sub scroll_to_bottom {
    my ($self) = @_;
 
-   $self->{scroll_to_bottom} = 1;
+   $self->{scroll_to} = $#{$self->{par}};
    $self->update;
+}
+
+sub force_uptodate {
+   my ($self) = @_;
+
+   if (delete $self->{need_reflow}) {
+      my ($W, $H) = @{$self->{children}[0]}{qw(w h)};
+
+      my $height = 0;
+
+      for my $para (@{$self->{par}}) {
+         if ($para->{w} != $W && ($para->{wrapped} || $para->{w} > $W)) {
+            my $layout = $self->get_layout ($para);
+            my ($w, $h) = $layout->size;
+
+            $para->{w}       = $w + $para->{indent};
+            $para->{h}       = $h;
+            $para->{wrapped} = $layout->has_wrapped;
+         }
+
+         $para->{y} = $height;
+         $height += $para->{h};
+      }
+
+      $self->{height} = $height;
+      $self->{children}[1]->set_range ([$self->{children}[1]{range}[0], 0, $height, $H, 1]);
+
+      delete $self->{texture};
+   }
+
+   if (my $paridx = delete $self->{scroll_to}) {
+      $self->{children}[1]->set_value ($self->{par}[$paridx]{y});
+   }
 }
 
 sub update {
@@ -2803,34 +2953,9 @@ sub update {
    delete $self->{texture};
 
    $ROOT->on_post_alloc ($self => sub {
+      $self->force_uptodate;
+
       my ($W, $H) = @{$self->{children}[0]}{qw(w h)};
-
-      if (delete $self->{need_reflow}) {
-         my $height = 0;
-
-         for my $para (@{$self->{par}}) {
-            if ($para->{w} != $W && ($para->{wrapped} || $para->{w} > $W)) {
-               my $layout = $self->get_layout ($para);
-               my ($w, $h) = $layout->size;
-
-               $para->{w}       = $w + $para->{indent};
-               $para->{h}       = $h;
-               $para->{wrapped} = $layout->has_wrapped;
-            }
-
-            $height += $para->{h};
-         }
-
-         $self->{height} = $height;
-
-         $self->{children}[1]->set_range ([$self->{children}[1]{range}[0], 0, $height, $H, 1]);
-
-         delete $self->{texture};
-      }
-
-      if (delete $self->{scroll_to_bottom}) {
-         $self->{children}[1]->set_value (1e10);
-      }
 
       $self->{texture} ||= new_from_opengl CFPlus::Texture $W, $H, sub {
          glClearColor 0, 0, 0, 0;
@@ -2838,16 +2963,18 @@ sub update {
 
          my $top = int $self->{children}[1]{range}[0];
 
+         my $paridx = 0;
+         my $top_paragraph;
+         my $top = int $self->{children}[1]{range}[0];
+
          my $y0 = $top;
          my $y1 = $top + $H;
 
-         my $y = 0;
-
          for my $para (@{$self->{par}}) {
             my $h = $para->{h};
+            my $y = $para->{y};
 
             if ($y0 < $y + $h && $y < $y1) {
-
                my $layout = $self->get_layout ($para);
 
                $layout->render ($para->{indent}, $y - $y0);
@@ -2866,8 +2993,11 @@ sub update {
                }
             }
 
-            $y += $h;
+            $paridx++;
+            $top_paragraph ||= $paridx if $y >= $top;
          }
+
+         $self->{top_paragraph} = $top_paragraph;
       };
    });
 }
@@ -2979,6 +3109,9 @@ sub new {
 sub set_tooltip_from {
    my ($self, $widget) = @_;
 
+   $widget->{tooltip} = CFPlus::Pod::section_label tooltip => $1
+      if $widget->{tooltip} =~ /^#(.*)$/;
+
    my $tooltip = $widget->{tooltip};
 
    if ($ENV{CFPLUS_DEBUG} & 2) {
@@ -2995,7 +3128,7 @@ sub set_tooltip_from {
       markup    => $tooltip,
       max_w     => ($widget->{tooltip_width} || 0.25) * $::WIDTH,
       fontsize  => 0.8,
-      fg        => [0, 0, 0, 1],
+      style     => 1, # FLAG_INVERSE
       ellipsise => 0,
       font      => ($widget->{tooltip_font} || $::FONT_PROP),
    );
@@ -3159,7 +3292,7 @@ our @ISA = CFPlus::UI::HBox::;
 
 package CFPlus::UI::Menu;
 
-our @ISA = CFPlus::UI::FancyFrame::;
+our @ISA = CFPlus::UI::Toplevel::;
 
 use CFPlus::OpenGL;
 
@@ -3705,7 +3838,7 @@ sub rebuild_spell_list {
             1
          };
 
-         my $tooltip = "$spell->{message}$TOOLTIP_ALL";
+         my $tooltip = (CFPlus::asxml $spell->{message}) . $TOOLTIP_ALL;
 
          #TODO: add path info to tooltip
          #$self->add (6, $row, new CFPlus::UI::Label text => $spell->{path});

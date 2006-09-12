@@ -34,14 +34,7 @@ sub new {
 
    $self->{completer} = new CFPlus::MapWidget::Command::
       command   => $self->{command},
-      tooltip   => "<b>The Command Completer</b>\n\n"
-                 . "This is your central interface to send text commands to the server. "
-                 . "To enter a verbatim command to send to the server, just type the command, "
-                 . "followed by a space, and press return. "
-                 . "Typing the initial letters of words (or just any letters) displays guesses "
-                 . "for commands you might want to use.\n"
-                 . "You can use the cursor-up and cursor-down keys to select between those guesses.\n"
-                 . "<b>Right-Click</b> opens a menu where you cna select further options, sich as redefining key bindings.",
+      tooltip   => "#completer_help",
    ;
 
    $self

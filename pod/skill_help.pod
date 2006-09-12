@@ -43,15 +43,36 @@ use of skills.
    Wizardry        Magic        Pow    Int    n/a
    Woodsman        Mental       Int    Dex    Wis
 
-=head1 Detailed Skill Description
+=head1 X<skill_description>Skill Descriptions
 
 Below is a more detailed description of each skills and how they are used.
 
 =head2 alchemy
 
-You can identify potions, containers, and different kinds of ore and mineral,
-mix potions and create other stuff (such as gold, weapons, deadly monsters
-killing him/her etc.) from other ingredients using a cauldron.
+You can identify potions, containers, and different kinds of ore and
+mineral, mix potions and create other stuff (such as gold, weapons, deadly
+monsters killing him/her etc.) from other ingredients using a cauldron
+L<$ARCH/misc/Container/cauldron.base.111.png>.
+
+To identify alchemy stuff you have to stand over it or have it in your inventory and
+issue the command C<use_skill alchemy>. The alchemy items will be identified. Some might
+not get identified if your alchemy level is too low.
+
+A higher alchemy level will also help you to estimate the value of items better.
+
+To create something new, for example some dust or potion, you have to get a B<cauldron>.
+You find these in shops, guilds and some appartments. Some alchemy shops also let you use
+their cauldron for a fee. All you need now is to know what items creates which other item.
+You learn the ingredients this by finding recipes. It is B<very important> that you B<identify>
+all ingredients for a recipe before using them!
+
+For a start you could try to make B<water of the wise>:
+Get 7 water bottles (filled), identify them, put them in a cauldron, do C<use_skill alchemy>.
+If everything worked there should be B<water of the wise> in the cauldron now.
+Congratulations, your first alchemy was done!
+
+Be careful when doing alchemy and trying complicated receipes, they might fail and
+will backfire heavily at you.
 
 I<Never, ever, do alchemy in your home or in public places!> You can
 easily create powerful monsters that will kill you, kill you again when
@@ -59,49 +80,64 @@ you wake up in your savebed, kill you again... etc.
 
 =head2 bargaining
 
-ERROR: Is this true?
+This skill helps you to bargain in shops when buying and selling. The higher
+your bargaining level is the better prices you will get. Besides having a high
+bargaining skill it helps a lot to have a high L<charisma|stat_Cha> stat.
 
-While this skill is readied the user has added B<Cha> for purposes of
-purchase and selling of items only. B<Cha> is never allowed to exceed 30.
-When you are in a shop, you can use_skill bargaining to see whether that
+When you are in a shop, you can C<use_skill bargaining> to see whether that
 shop will buy the items you want to sell at a higher price than others and
 whether the shopkeeper likes you. Elf shopkeepers will like elf players.
 
 =head2 bowyer
 
-You can identify missile weapons and missiles such as arrows, bolts and bows.
-One can also create special bows and arrows from other ingredients using the
-alchemy skill and a B<workbench>.
+You can identify missile weapons and missiles such as arrows, bolts and
+bows.  One can also create special bows and arrows from other ingredients
+using the bowyer skill like the L<alchemy skill|skill_description/alchemy>
+skill and a B<workbench> L<$ARCH/misc/Container/workbench.base.111.png>
+(you just have to find out a recipe).
 
 =head2 clawing
 
-You can make a "bare-handed attack". Damage is based on the user's B<Str>
-and level. With time, one can have different claws such as fire claws or
-electric claws. An elemental residue from the dragon guild is required.
+You can make a "bare-handed attack". Damage is based on the user's
+L<strength|stat_Str> and level. With time, one can have different claws
+such as fire claws or electric claws. An elemental residue from the dragon
+guild is required to change this. The dragon guild can be found in scorn.
 
 =head2 levitation
 
 You can levitate (fly low) at will. Using the skill first makes you
 levitate, and at the second time returns you to the earth.
+Levitation can be useful to fly over water streams that move you
+if you walk in them, or it prevents you from falling into a pit.
 
 =head2 summoning
 
 You can cast spells related to the B<summoning> school of wizardry, which
 mostly summon monsters, bullet walls and similar things.  This skill
 may be acquired either through the use of an appropriate B<talisman> or
-learned via a B<skill scroll>.
+learned via a L<skill scroll>.
+
+The most basic spells you might want to get is 'summon pet monster'
+and 'charm monsters'. Look in the L<Spellbook|spellbook> if you got
+the spells and read their description.
 
 =head2 pyromancy
 
 You can cast spells related to the B<pyromancy> (fire) school of
 wizardry.  This skill may be acquired either through the use of an
-appropriate B<talisman> or learned via a B<skill scroll>.
+appropriate B<talisman> or learned via a L<skill scroll>.
+
+The first spell would be 'burning hands' which casts a cone of fire which
+burns your enemies. It becomes stronger with your pyromancy level.
 
 =head2 evocation
 
 You can cast spells related to the B<evocation> (mostly cold magic)
 school of wizardry.  This skill may be acquired either through the use of
-an appropriate B<talisman> or learned via a B<skill scroll>.
+an appropriate B<talisman> or learned via a L<skill scroll>.
+
+The spell you should start with is 'icestorm' which casts a cone
+of ice which freezes your enemies. It becomes stronger with your evocation level.
 
 =head2 sorcery
 
@@ -110,44 +146,53 @@ other meta-spells) school of wizardry.  This skill may be acquired either
 through the use of an appropriate B<talisman> or learned via a B<skill
 scroll>.
 
+Sorcery has many utility spells, like 'identify', 'town portal' (making portals
+between two points in the world) and also attack spells like 'spark shower'
+and 'steambolt'.
+
 =head2 flame touch
 
 You can make a "bare-handed attack". Damage is based on the user's
-B<Str> and level. This is the default hand-to-hand fighting skill for the
-fireborn character class.
+L<strength|stat_Str> and level. This is the default hand-to-hand fighting
+skill for the fireborn character class.
 
 =head2 hiding
 
+This skill lets you hide, that means that you will become invisible.
+To hide you need to find a place with other stuff on it where you can hide.
+
 You enjoy limited form of invisibility. If you attack or move too much
-you become visible. Right now it is possible to hidden while next to
-hostile monsters. Not a reasonable feature!
+you become visible.
 
 =head2 jeweler
 
 You can identify amulets, rings and talismans. One can also improve magic
-rings or enchant non-magic rings to give them stat bonuses using the alchemy
-skill and a B<jeweler's workbench>.
+rings or enchant non-magic rings to give them stat bonuses, this works
+similar to the L<alchemy skill|skill_description/alchemy>, only that
+you need to put the ingredients in a B<jeweler's workbench>.
 
 =head2 jumping
 
-You can "skip" over one, two or three spaces in the selected direction.
-Distance depends on weight carried, B<Str> and B<Dex> of the user. This skill
-may also be used as an attack.
+You can "skip" over one, two or three spaces in the selected
+direction.  Distance depends on weight carried, L<strength|stat_Str> and
+L<dexterity|stat_Dex> of the user. This skill may also be used as an
+attack.
 
 =head2 karate
 
-You can make a "bare-handed attack". Damage is based on the user's B<Str>
-and level. This attack is the fastest and (at higher levels) most deadly
-of the hand-to-hand attacks available.
+You can make a "bare-handed attack". Damage is based on the user's
+L<strength|stat_Str> and level. This attack is the fastest and (at higher
+levels) most deadly of the hand-to-hand attacks available.
 
 =head2 climbing
 
 Having this skill allows you to move faster through hilly areas than players
-without this skill.
+without this skill. B<Note:> You can't gain experience in this skill. Having
+this skill is enough to move faster.
 
 =head2 literacy
 
-You can identify books and scrolls that you hold. Since scrolls are
+You can identify books and scrolls that you hold.  Since scrolls are
 currently always identified, this is not the greatest of skills.
 
 =head2 lockpicking
@@ -157,7 +202,8 @@ B<lockpicks> to use this skill.
 
 =head2 meditation
 
-Player can regain mana/hp at an accelerated rate. Player must first strip
+Player can regain mana/hp at an accelerated rate by C<use_skill meditation>,
+the L<praying skill|skill_description/praying>. Player must first strip
 off encumbering armour however. This skill is only available to the "monk"
 character class.
 
@@ -175,7 +221,7 @@ Wield and ready the weapon by applying it and use the fire and direction keys.
 =head2 missile weapons
 
 The user is capabale of making attacks with ranged weapons (eg bow, crossbow).
-Fire arrows by applying a bow and using teh fire and direction keys. To fire
+Fire arrows by applying a bow and using the fire and direction keys. To fire
 specific arrows to kill a monster that is weak against a certain arrow, mark
 this arrow and fire.
 
@@ -189,19 +235,23 @@ terrain (hills, mountains, etc.)
 You may "recruit" followers. Recruitees must be of lower level, and
 unaggressive to start. Use of this skill may anger the audience. Also,
 "special" monsters are immune to recruitment. Success depends on user's
-B<Cha> and level.
+L<charisma|stat_Cha> and level.
 
 =head2 praying
 
 You are allowed to cast "cleric" spells. In addition, this skill may be
-used to accelerate the accumulation of grace. This skill may be either
-learned (e.g. using a B<skill scroll>) or acquired through the use of a
-B<holy symbol>.
+used to accelerate the accumulation of grace by C<use_skill praying>.
+This skill may be either learned (e.g. using a L<skill scroll>) or
+acquired through the use of a B<holy symbol>.
+
+One of the best spells to start is the 'holy word' spell and later,
+if you find it, the 'banishment' spell, which is much stronger.
 
 =head2 punching
 
-You can make a "bare-handed attack". Damage is based on the user's B<Str>
-and level. This is the most feeble of the hand-to-hand attacks.
+You can make a "bare-handed attack". Damage is based on the user's
+L<strength|stat_Str> and level. This is the most feeble of the
+hand-to-hand attacks.
 
 =head2 find traps
 
@@ -210,7 +260,7 @@ skill, it must be applied in order to gain the advantage in discovering
 traps, or actively used when in vicinity of a trap. To use it, fire into
 any direction.
 
-=head2 disarm
+=head2 disarm traps
 
 You can disarm previously discovered traps (for example, with the B<find traps> skill).
 
@@ -227,7 +277,7 @@ direction while this skill is readied.
 =head2 singing
 
 You may pacify hostile monsters with this skill. Certain kinds of
-monsters are immune. Success depends on user level and B<Cha>.
+monsters are immune. Success depends on user level and L<charisma|stat_Cha>.
 
 =head2 smithery
 
@@ -239,7 +289,7 @@ B<forge>, can even create weapons using the alchemy skill.
 You can take items from the inventory of NPCs, monsters and maybe other
 players.
 
-=head2 thaumathurgy
+=head2 thaumaturgy
 
 You can identify rods, wands and horns that you are holding, and, with
 the help of a B<thaumaturgists workbench> and the alchemy skill, create
@@ -269,9 +319,10 @@ While the skill is readied, the possessor will move faster through
 
 You can inscribe scrolls with a text. This is useful to create messages,
 especially via the Imperial Post Office (IPO).
-You can also rewrite spell scrolls with a previously known spell. B<Sp>,
-time and an old scroll are needed. Backfire effects are possible. Only
-available as a 'writing pen'.
+
+You can also rewrite spell scrolls with a previously known spell. You
+need L<mana|stat_mana>, time and an old scroll. Backfire effects are
+possible. Only available as a 'writing pen'.
 
 How to rewrite a mail scroll/books etc.:
 
@@ -458,13 +509,13 @@ player. Similar in action to the invoke command.
 
 =back
 
-Three player commands are related to skills use: B<ready_skill>,
-B<use_skill>, and B<skills>. Generally, a player will use a skill by first
-readying the right one, with the ready_skill command and then making a
-ranged "attack" to activate the skill; using most skills is just like
-firing a wand or a bow. In a few cases however, a skill is be used just
-by having it readied. For example, the mountaineer skill allows favorable
-movement though hilly terrain while it is readied.
+Three player commands are related to skills use: L<ready_skill>,
+L<use_skill>, and L<skills|command/skills>. Generally, a player will use
+a skill by first readying the right one, with the ready_skill command and
+then making a ranged "attack" to activate the skill; using most skills is
+just like firing a wand or a bow. In a few cases however, a skill is be
+used just by having it readied. For example, the mountaineer skill allows
+favorable movement though hilly terrain while it is readied.
 
 To change to a new skill, a player can use either the B<use_skill> or
 B<ready_skill> commands, but note that the use of several common items can
@@ -483,12 +534,13 @@ It is not possible to use more than one skill at a time.
 =head2 Acquiring skills
 
 Skills may be gained in two ways. In the first, new skills may
-learned. This is done by reading a B<skill scroll> and the process is very
-similar to learning a spell. Just as in attempts to learn incantations,
-success in learning skills is dependent on a random test based on the
-learner's INT. Using your INT stat, look in the learn% column in table
-primary stat effects to find your % chance of learning a skill. Once you
-hit 100%, you will always be successfull in learning new skills.
+learned. This is done by reading a L<skill scroll>
+and the process is very similar to learning a spell. Just as in attempts
+to learn incantations, success in learning skills is dependent on a random
+test based on the learner's INT. Using your INT stat, look in the learn%
+column in table primary stat effects to find your % chance of learning a
+skill. Once you hit 100%, you will always be successfull in learning new
+skills.
 
 The acquisition of a skill tool will also allow the player to use a new
 skill. An example of a skill tool is "lockpicks" lockpicks (which allow

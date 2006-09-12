@@ -1,3 +1,14 @@
+=begin comment
+
+***
+*** WARNING:
+*** This file resides in both CFPlus/pod/ and server/pod/
+*** Only ever edit the version in CFPlus/pod/ and run
+*** ./copy_pod inside server/pod/ to update that copy.
+***
+
+=end
+
 =head1 Crossfire+ Dungeon Master Commands
 
 The following commands are only available to you if you are dungeon

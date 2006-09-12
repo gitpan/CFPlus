@@ -1,243 +1,179 @@
 package CFPlus::Pod;
 
 use strict;
+use utf8;
 
-use Pod::POM;
+use Storable;
 
-use CFPlus;
-use CFPlus::UI;
+our $VERSION = 1;
 
-our $VERSION = 1.02; # bump if resultant formatting changes
+our $goto_document = sub { };
+our %wiki;
 
-our @result;
-our $indent;
+my $MA_BEG = "\x{fcd0}";
+my $MA_SEP = "\x{fcd1}";
+my $MA_END = "\x{fcd2}";
 
-package CFPlus::Pod::AsMarkup;
+*wiki = Storable::retrieve CFPlus::find_rcfile "docwiki.pst";
 
-use strict;
-
-use base "Pod::POM::View::Text";
-
-*view_seq_file   =
-*view_seq_code   =
-*view_seq_bold   = sub { "<b>$_[1]</b>" };
-*view_seq_italic = sub { "<i>$_[1]</i>" };
-*view_seq_space  =
-*view_seq_link   = sub { CFPlus::asxml $_[1] };
-*view_seq_zero   =
-*view_seq_index  = sub { };
-
-sub view_seq_text {
-   my $text = $_[1];
-   $text =~ s/\s+/ /g;
-   CFPlus::asxml $text
+sub goto_document($) {
+   $goto_document->(split /\//, $_[0]);
 }
 
-sub view_item {
-   ("\t" x ($indent / 4))
-   . $_[1]->title->present ($_[0])
-   . "\n\n"
-   . $_[1]->content->present ($_[0])
+sub is_prefix_of($@) {
+   my ($node, @path) = @_;
+
+   return 1 unless @path;
+
+   my $kw = lc pop @path;
+
+   $node = $node->{parent}
+      or return 0;
+
+   return ! ! grep $_ eq $kw, @{ $node->{kw} };
 }
 
-sub view_verbatim {
-   (join "",
-       map +("\t" x ($indent / 2)) . "<tt>$_</tt>\n",
-          split /\n/, CFPlus::asxml $_[1])
-   . "\n"
+sub find(@) {
+   my (@path) = @_;
+
+   return unless @path;
+
+   my $kw = lc pop @path;
+
+   # TODO: make sure results are unique
+
+   grep { is_prefix_of $_, @path }
+      map @$_,
+         $kw eq "*" ? @wiki{sort keys %wiki}
+                    : $wiki{$kw} || ()
 }
 
-sub view_textblock {
-   ("\t" x ($indent / 2)) . "$_[1]\n"
-}
+sub full_path_of($) {
+   my ($node) = @_;
 
-sub view_head1 {
-   "\n\n<span foreground='#ffff00' size='x-large'>" . $_[1]->title->present ($_[0]) . "</span>\n\n"
-   . $_[1]->content->present ($_[0])
-};
+   my @path;
 
-sub view_head2 {
-   "\n<span foreground='#ccccff' size='large'>" . $_[1]->title->present ($_[0]) . "</span>\n\n"
-   . $_[1]->content->present ($_[0])
-};
-
-sub view_head3 {
-   "\n<span size='large'>" . $_[1]->title->present ($_[0]) . "</span>\n\n"
-   . $_[1]->content->present ($_[0])
-};
-
-sub view_over {
-   local $indent = $indent + $_[1]->indent;
-   $_[1]->content->present ($_[0])
-}
-
-package CFPlus::Pod::AsParagraphs;
-
-use strict;
-
-use base "Pod::POM::View";
-
-*view_seq_file   =
-*view_seq_code   =
-*view_seq_bold   = sub { "<b>$_[1]</b>" };
-*view_seq_italic = sub { "<i>$_[1]</i>" };
-*view_seq_zero   = sub { };
-*view_seq_space  = sub { my $text = $_[1]; $text =~ s/ /&#160;/g; $text };
-*view_seq_index  = sub { warn "index<@_>\n"; $result[-1]{index}{$_[1]} = undef };
-
-sub view_seq_text {
-   my $text = $_[1];
-   $text =~ s/\s+/ /g;
-   CFPlus::asxml $text
-}
-
-sub view_seq_link {
-   my (undef, $link) = @_;
-
-   # TODO:
-   # http://...
-   # ref
-   # pod/ref
-
-   "<u>" . (CFPlus::asxml $_[1]) . "</u>";
-}
-
-sub view_item {
-   push @result, {
-      indent => $indent * 8,
-      markup => $_[1]->title->present ($_[0]) . "\n\n",
-   };
-   $_[1]->content->present ($_[0]);
-   ()
-}
-
-sub view_verbatim {
-   push @result, {
-      indent => $indent * 16,
-      markup => "<tt>" . (CFPlus::asxml $_[1]) . "</tt>\n",
-   };
-   ()
-}
-
-sub view_textblock {
-   push @result, {
-      indent => $indent * 16,
-      markup => "$_[1]\n",
-   };
-   ()
-}
-
-sub view_head1 {
-   push @result, {
-      indent => $indent * 16,
-      markup => "\n\n<span foreground='#ffff00' size='x-large'>" . $_[1]->title->present ($_[0]) . "</span>\n",
-   };
-   $_[1]->content->present ($_[0]);
-   ()
-};
-
-sub view_head2 {
-   push @result, {
-      indent => $indent * 16,
-      markup => "\n\n<span foreground='#ccccff' size='large'>" . $_[1]->title->present ($_[0]) . "</span>\n",
-   };
-   $_[1]->content->present ($_[0]);
-   ()
-};
-
-sub view_head3 {
-   push @result, {
-      indent => $indent * 16,
-      markup => "\n\n<span size='large'>" . $_[1]->title->present ($_[0]) . "</span>\n",
-   };
-   $_[1]->content->present ($_[0]);
-   ()
-};
-
-sub view_over {
-   local $indent = $indent + $_[1]->indent;
-   push @result, { indent => $indent };
-   $_[1]->content->present ($_[0]);
-   ()
-}
-
-sub view_for {
-   if ($_[1]->format eq "image") {
-      push @result, {
-         indent => $indent * 16,
-         markup => "\x{fffc}",
-         widget => [new CFPlus::UI::Image path => "pod/" . $_[1]->text],
-      };
+   # skip toplevel hierarchy pod/, because its not a document
+   while ($node->{parent}) {
+      unshift @path, $node;
+      $node = $node->{parent};
    }
-   ()
+
+   @path
 }
 
-sub view {
-   my ($self, $type, $item) = @_;
-
-   $item->content->present ($self);
+sub full_path($) {
+   join "/", map $_->{kw}[0], &full_path_of
 }
 
-package CFPlus::Pod;
+sub section_of($) {
+   my ($node) = @_;
 
-my $pod_cache = CFPlus::db_table "pod_cache";
+   my $doc = $node->{doc};
+   my $par = $node->{par};
+   my $lvl = $node->{level};
 
-sub load($$$$) {
-   my ($path, $filtertype, $filterversion, $filtercb) = @_;
+   my @res;
 
-   stat $path
-      or die "$path: $!";
+   do {
+      my $p = $doc->[$par];
 
-   my $phash = join ",", $filterversion, $VERSION, (stat _)[7,9];
+      if (length $p->{markup}) {
+         push @res, {
+            markup => $p->{markup},
+            indent => $p->{indent},
+         };
+      }
+   } while $doc->[++$par]{level} > $lvl;
 
-   my ($chash, $pom) = eval {
-      local $SIG{__DIE__};
-      @{ Storable::thaw $pod_cache->get ("$path/$filtertype") }
-   };
-
-   return $pom if $chash eq $phash;
-
-   my $pod = do {
-      local $/;
-      open my $pod, "<:utf8", $_[0]
-         or die "$_[0]: $!";
-      <$pod>
-   };
-
-   #utf8::downgrade $pod;
-
-   $pom = $filtercb->(Pod::POM->new->parse_text ($pod));
-
-   $pod_cache->put ("$path/$filtertype" => Storable::nfreeze [$phash, $pom]);
-
-   $pom
+   @res
 }
 
-sub section($$) {
-   my ($pod, $section) = @_;
+sub section(@) {
+   map section_of $_, &find
 }
 
-sub as_markup($) {
-   my ($pom) = @_;
+sub thaw_section(\@\%) {
+   for (@{$_[0]}) {
+      $_->{markup} =~ s{
+         $MA_BEG
+         ([^$MA_END]+)
+         $MA_END
+      }{
+         my ($type, @arg) = split /$MA_SEP/o, $1;
 
-   local $indent = 0;
-
-   $pom->present ("CFPlus::Pod::AsMarkup")
+         $_[1]{$type}($_, @arg)
+      }ogex;
+   }
 }
 
-sub as_paragraphs($) {
-   my ($pom) = @_;
+my %as_label = (
+   image => sub {
+      my ($par, $path) = @_;
 
-   local @result = ( { } );
-   local $indent = 0;
+      "<small>img</small>"
+   },
+   link => sub {
+      my ($par, $text, $link) = @_;
 
-   $pom->present ("CFPlus::Pod::AsParagraphs");
+      "<span foreground='#ffff00'>↺</span><span foreground='#c0c0ff' underline='single'>" . (CFPlus::asxml $text) . "</span>"
+   },
+);
 
-   [grep exists $_->{markup}, @result]
+sub as_label(@) {
+   thaw_section @_, %as_label;
+
+   my $text =
+      join "\n",
+         map +("\xa0" x ($_->{indent} / 4)) . $_->{markup},
+            @_;
+
+   $text =~ s/^\s+//;
+   $text =~ s/\s+$//;
+
+   $text
 }
 
-sub pod_paragraphs($) {
-   load CFPlus::find_rcfile "pod/$_[0].pod",
-      pod_paragraphs => 1, sub { as_paragraphs $_[0] };
+my %as_paragraphs = (
+   image => sub {
+      my ($par, $path, $flags) = @_;
+
+      push @{ $par->{widget} }, new CFPlus::UI::Image path => $path,
+         $flags & 1 ? (max_h => $::FONTSIZE) : ();
+
+      "\x{fffc}"
+   },
+   link => sub {
+      my ($par, $text, $link) = @_;
+
+      push @{ $par->{widget} }, new CFPlus::UI::Label
+         markup     => "<span foreground='#ffff00'>↺</span><span foreground='#c0c0ff' underline='single'>" . (CFPlus::asxml $text) . "</span>",
+         fontsize   => 0.8,
+         can_hover  => 1,
+         can_events => 1,
+         padding_x  => 0,
+         padding_y  => 0,
+         tooltip    => "Go to <i>" . (CFPlus::asxml $link) . "</i>",
+         on_button_up => sub {
+            goto_document $link;
+         };
+
+      "\x{fffc}"
+   },
+);
+
+sub as_paragraphs(@) {
+   thaw_section @_, %as_paragraphs;
+
+   @_
 }
 
+sub section_paragraphs(@) {
+   as_paragraphs &section
+}
+
+sub section_label(@) {
+   as_label &section
+}
+
+1

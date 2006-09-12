@@ -45,17 +45,22 @@ typedef struct _PangoOpenGLFontMapClass PangoOpenGLFontMapClass;
 
 typedef void (*PangoOpenGLSubstituteFunc) (FcPattern *pattern, gpointer data);
 
+#define FLAG_INVERSE 1
+#define FLAG_OUTLINE 2 // not yet implemented
+
 /* Calls for applications */
 
 void
 pango_opengl_render_layout_subpixel (PangoLayout *layout,
                                      int x, int y,
-                                     float r, float g, float b, float a);
+                                     float r, float g, float b, float a,
+                                     int flags);
 
 void
 pango_opengl_render_layout (PangoLayout *layout,
                             int x, int y,
-                            float r, float g, float b, float a);
+                            float r, float g, float b, float a,
+                            int flags);
 
 GType pango_opengl_font_map_get_type (void);
 

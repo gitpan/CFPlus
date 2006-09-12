@@ -4,7 +4,7 @@ use strict;
 
 use CFPlus::UI;
 
-our @ISA = CFPlus::UI::FancyFrame::;
+our @ISA = CFPlus::UI::Toplevel::;
 
 my @ALLOWED_MODIFIER_KEYS = (
    CFPlus::SDLK_LSHIFT,
@@ -186,7 +186,7 @@ sub ask_for_bind {
 
    Scalar::Util::weaken $self;
 
-   $self->{binder} = new CFPlus::UI::FancyFrame
+   $self->{binder} = new CFPlus::UI::Toplevel
       title => "Bind Action",
       x     => "center",
       y     => "center",

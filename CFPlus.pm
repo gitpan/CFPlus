@@ -15,7 +15,7 @@ CFPlus - undocumented utility garbage for our crossfire client
 package CFPlus;
 
 BEGIN {
-   $VERSION = '0.2';
+   $VERSION = '0.5';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
@@ -29,23 +29,6 @@ use BerkeleyDB;
 use Pod::POM ();
 use Scalar::Util ();
 use Storable (); # finally
-
-our %STAT_TOOLTIP = (
-   Str => "<b>Physical Strength</b>, determines damage dealt with weapons, how much you can carry, and how often you can attack",
-   Dex => "<b>Dexterity</b>, your physical agility. Determines chance of being hit and affects armor class and speed",
-   Con => "<b>Constitution</b>, physical health and toughness. Determines how many healthpoints you can have",
-   Int => "<b>Intelligence</b>, your ability to learn and use skills and incantations (both prayers and magic) and determines how much spell points you can have",
-   Wis => "<b>Wisdom</b>, the ability to learn and use divine magic (prayers). Determines how many grace points you can have",
-   Pow => "<b>Power</b>, your magical potential. Influences the strength of spell effects, and also how much your spell and grace points increase when leveling up",
-   Cha => "<b>Charisma</b>, how well you are received by NPCs. Affects buying and selling prices in shops.",
-
-   Wc  => "<b>Weapon Class</b>, effectiveness of melee/missile attacks. Lower is more potent. Current weapon, level and Str are some things which effect the value of Wc. The value of Wc may range between 25 and -72.",
-   Ac  => "<b>Armour Class</b>, how protected you are from being hit by any attack. Lower values are better. Ac is based on your race and is modified by the Dex and current armour worn. For characters that cannot wear armour, Ac improves as their level increases.",
-   Dam => "<b>Damage</b>, how much damage your melee/missile attack inflicts. Higher values indicate a greater amount of damage will be inflicted with each attack.",
-   Arm => "<b>Armour</b>, how much damage (from physical attacks) will be subtracted from successful hits made upon you. This value ranges between 0 to 99%. Current armour worn primarily determines Arm value. This is the same as the physical resistance.",
-   Spd => "<b>Speed</b>, how fast you can move. The value of speed may range between nearly 0 (\"very slow\") to higher than 5 (\"lightning fast\"). Base speed is determined from the Dex and modified downward proportionally by the amount of weight carried which exceeds the Max Carry limit. The armour worn also sets the upper limit on speed.",
-   WSp => "<b>Weapon Speed</b>, how many attacks you may make per unit of time (0.120s). Higher values indicate faster attack speed. Current weapon and Dex effect the value of weapon speed.",
-);
 
 =item guard { BLOCK }
 
@@ -88,7 +71,12 @@ my %DB_SYNC;
 sub put($$$) {
    my ($db, $key, $data) = @_;
 
-   $DB_SYNC{$db} = AnyEvent->timer (after => 5, cb => sub { $db->db_sync });
+   my $hkey = $db + 0;
+   Scalar::Util::weaken $db;
+   $DB_SYNC{$hkey} ||= AnyEvent->timer (after => 5, cb => sub {
+      delete $DB_SYNC{$hkey};
+      $db->db_sync if $db;
+   });
 
    $db->db_put ($key => $data)
 }
@@ -228,7 +216,7 @@ sub weight_string {
 sub do_n_dialog {
    my ($cb) = @_;
 
-   my $w = new CFPlus::UI::FancyFrame
+   my $w = new CFPlus::UI::Toplevel
       on_delete => sub { $_[0]->destroy; 1 },
       has_close_button => 1,
    ;
@@ -300,6 +288,16 @@ sub update_widgets {
                      $::CONN->send ("mark ". pack "N", $self->{tag});
                      $::CONN->send ("command use_skill inscription $txt");
                   });
+               }
+            ],
+            ["rename",  # first try of an easier use of flint&steel
+               sub {
+                  &::open_string_query ("Rename item to:", sub {
+                     my ($entry, $txt) = @_;
+                     $::CONN->send ("mark ". pack "N", $self->{tag});
+                     $::CONN->send ("command rename to <$txt>");
+                  }, $self->{name},
+                  "If you input no name or erase the current custom name, the custom name will be unset");
                }
             ],
             ["apply",   sub { $::CONN->send ("apply $self->{tag}") }],

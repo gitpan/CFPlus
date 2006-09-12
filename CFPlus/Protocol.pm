@@ -14,38 +14,32 @@ use base 'Crossfire::Protocol::Base';
 sub new {
    my $class = shift;
 
-   my $self = $class->SUPER::new (@_);
+   my $self = $class->SUPER::new (@_, setup_req => { extmap => 1 });
 
    $self->{map_widget}->clr_commands;
 
-   my $cmd_help = CFPlus::Pod::load CFPlus::find_rcfile "pod/command_help.pod", command_help => 1, sub {
-      my ($pom) = @_;
+   my @cmd_help = map {
+      $_->{kw}[0] =~ /^(\S+) (?:\s+ \( ([^\)]*) \) )?/x
+         or die "unparseable command help: $_->{kw}[0]";
 
-      my @cmd_help;
+      my $cmd = $1;
+      my @args = split /\|/, $2;
+      @args = (".*") unless @args;
 
-      for my $head2 ($pom->head1->[-2]->head2) {
-         $head2->title =~ /^(\S+) (?:\s+ \( ([^\)]*) \) )?/x
-            or next;
+      my (undef, @par) = CFPlus::Pod::section_of $_;
+      my $text = CFPlus::Pod::as_label @par;
 
-         my $cmd = $1;
-         my @args = split /\|/, $2;
-         @args = (".*") unless @args;
+      $_ = $_ eq ".*" ? "" : " $_"
+         for @args;
 
-         $_ = $_ eq ".*" ? "" : " $_"
-            for @args;
+      map ["$cmd$_", $text],
+         sort { (length $a) <=> (length $b) }
+            @args
+  } sort { $a->{par} <=> $b->{par} }
+         CFPlus::Pod::find command => "*";
 
-         my $text = CFPlus::Pod::as_markup $head2->content;
-
-         push @cmd_help, ["$cmd$_", $text]
-            for sort { (length $a) <=> (length $b) }
-                     @args;
-      }
-
-      \@cmd_help
-   };
-
-   $self->{map_widget}->add_command (@$_)
-      for @$cmd_help;
+  $self->{map_widget}->add_command (@$_)
+     for @cmd_help;
 
    $self->{noface} = new_from_file CFPlus::Texture
       CFPlus::find_rcfile "noface.png", minify => 1, mipmap => 1;
@@ -53,11 +47,14 @@ sub new {
    $self->{open_container} = 0;
 
    # "global"
-   $self->{tilecache} = CFPlus::db_table "tilecache";
-   $self->{facemap}   = CFPlus::db_table "facemap";
+   $self->{tilecache} = CFPlus::db_table "tilecache"
+      or die "tilecache: unable to open database table";
+   $self->{facemap}   = CFPlus::db_table "facemap"
+      or die "facemap: unable to open database table";
 
    # per server
-   $self->{mapcache}  = CFPlus::db_table "mapcache_$self->{host}_$self->{port}";
+   $self->{mapcache}  = CFPlus::db_table "mapcache_$self->{host}_$self->{port}"
+      or die "mapcache_$self->{host}_$self->{port}: unable to open database table";
 
    $self
 }
@@ -267,7 +264,6 @@ sub update_stats_window {
 
       my @TOOLTIP_LVL  = (tooltip => "<b>Level</b>. The level of the skill.$TOOLTIP_ALL", can_events => 1, can_hover => 1);
       my @TOOLTIP_EXP  = (tooltip => "<b>Experience</b>. The experience points you have in this skill.$TOOLTIP_ALL", can_events => 1, can_hover => 1);
-      my @TOOLTIP_NAME = (tooltip => "<b>Name</b>. The name of the skill.$TOOLTIP_ALL", can_events => 1, can_hover => 1);
 
       my ($x, $y) = (0, 1);
       for (
@@ -303,7 +299,8 @@ sub update_stats_window {
             text => "0", align => 1, font => $::FONT_FIXED, fg => [1, 1, 0], on_button_down => $spell_cb, @TOOLTIP_EXP);
          $sktbl->add ($x * 3 + 1, $y, $self->{stat_widget_lvl}{$idx} = new CFPlus::UI::Label
             text => "0", align => 1, font => $::FONT_FIXED, fg => [0, 1, 0], padding_x => 4, on_button_down => $spell_cb, @TOOLTIP_LVL);
-         $sktbl->add ($x * 3 + 2, $y, new CFPlus::UI::Label text => $name, on_button_down => $spell_cb, @TOOLTIP_NAME);
+         $sktbl->add ($x * 3 + 2, $y, new CFPlus::UI::Label text => $name, on_button_down => $spell_cb,
+                      can_events => 1, can_hover => 1, tooltip => (CFPlus::Pod::section_label skill_description => $name) . $TOOLTIP_ALL);
 
          $x++ and ($x, $y) = (0, $y + 1);
       }
@@ -347,7 +344,7 @@ sub map_scroll {
 sub feed_map1a {
    my ($self, $data) = @_;
 
-   $self->{map}->map1a_update ($data);
+   $self->{map}->map1a_update ($data, $self->{setup}{extmap});
    $self->{map_widget}->update;
 }
 
@@ -638,7 +635,7 @@ sub drawinfo {
    $self->{statusbox}->add ($text,
       group        => $text,
       fg           => $color[$color],
-      timeout      => $color >= 2 ? 60 : 10,
+      timeout      => $color >= 2 ? 180 : 10,
       tooltip_font => $::FONT_FIXED,
    );
 }
@@ -672,25 +669,20 @@ sub spell_delete {
 sub addme_success {
    my ($self) = @_;
 
-   my $skill_help = CFPlus::Pod::load CFPlus::find_rcfile "pod/skill_help.pod", skill_help => 1, sub {
-      my ($pom) = @_;
+   my %skill_help;
 
-      my %skill_help;
-
-      for my $head2 ($pom->head1->[3]->head2) {
-         $skill_help{$head2->title} = CFPlus::Pod::as_markup $head2->content;
-      }
-
-      \%skill_help
+   for my $node (CFPlus::Pod::find skill_description => "*") {
+      my (undef, @par) = CFPlus::Pod::section_of $node;
+      $skill_help{$node->{kw}[0]} = CFPlus::Pod::as_label @par;
    };
-
+ 
    for my $skill (values %{$self->{skill_info}}) {
       $self->{map_widget}->add_command ("ready_skill $skill",
                                         (CFPlus::asxml "Ready the skill '$skill'\n\n")
-                                        . $skill_help->{$skill});
+                                        . $skill_help{$skill});
       $self->{map_widget}->add_command ("use_skill $skill",
                                         (CFPlus::asxml "Immediately use the skill '$skill'\n\n")
-                                        . $skill_help->{$skill});
+                                        . $skill_help{$skill});
    }
 }
 
@@ -887,6 +879,7 @@ sub update_server_info {
     . "protocol version <tt>$self->{version}</tt>\n"
     . "minimap support $yesno[$self->{setup}{mapinfocmd} > 0]\n"
     . "extended command support $yesno[$self->{setup}{extcmd} > 0]\n"
+    . "map attributes $yesno[$self->{setup}{extmap} > 0]\n"
     . "cfplus support $yesno[$self->{cfplus_ext} > 0]"
       . ($self->{cfplus_ext} > 0 ? ", version $self->{cfplus_ext}" : "") ."\n"
     . "map size $self->{mapw}×$self->{maph}\n"
@@ -935,7 +928,7 @@ sub lookat {
 sub destroy {
    my ($self) = @_;
 
-   $self->{npc_dialog}->destroy
+   (delete $self->{npc_dialog})->destroy
       if $self->{npc_dialog};
 
    $self->SUPER::destroy;
@@ -943,7 +936,7 @@ sub destroy {
 
 package CFPlus::NPCDialog;
 
-our @ISA = 'CFPlus::UI::FancyFrame';
+our @ISA = 'CFPlus::UI::Toplevel';
 
 sub new {
    my $class = shift;
@@ -972,11 +965,7 @@ sub new {
 
    $vbox->add (new CFPlus::UI::Label text => "Message Entry:");
    $vbox->add ($self->{entry} = new CFPlus::UI::Entry
-      tooltip     => "Enter a message you want to tell the NPC and press <b>return</b>.\n\n"
-                   . "Sometimes you have to tell an NPC something you cannot find out during "
-                   . "a normal conversation (such as a password). In those cases you have to use "
-                   . "this text entry. You can also enter responses manually instead of using the response "
-                   . "buttons below.",
+      tooltip     => "#npc_message_entry",
       on_activate => sub {
          my ($entry, $text) = @_;
 
@@ -1061,7 +1050,7 @@ sub feed {
                $self->send ($kw);
             };
 
-         chr 0xfffc
+         "\x{fffc}"
       }giex;
       
       $self->{textview}->add_paragraph ({ markup => $text, widget => \@link });

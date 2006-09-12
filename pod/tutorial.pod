@@ -1,6 +1,6 @@
 =for image banner.png
 
-=head1 CFPlus - a Crossfire+ and Crossfire game client.
+=head1 CFPlus Tutorial - An introduction to Crossfire+ and Crossfire game client.
 
 =head2 What's Crossfire+ - Basic Game Concepts
 
@@ -8,8 +8,8 @@ In the words of Frank Tore Johansen, the author of the original Crossfire
 game:
 
 "Crossfire is a multi-player graphical arcade and adventure game made for
-the X Windows systems environment. It has certain flavours from other
-games, especially gauntletand the rogue-like games. Any number of players
+the X Window System environment. It has certain flavours from other
+games, especially gauntlet and the rogue-like games. Any number of players
 can move around in their own window, finding and using items and battling
 monsters. They can choose to cooperate or compete in the same world."
 
@@ -64,7 +64,7 @@ with.
 If you are playing for the first time, type any name you like; this will
 be your character name for the rest of the life of that character.
 As you don't have a character yet you have to create a new
-character. It will be explained below at the L<intro/Character Creation>.
+character. It will be explained below at the L<Character Creation>.
 
 =item B<Password>
 
@@ -93,7 +93,7 @@ using the button at the top of the screen).
 Hover with the mouse cursor over the stats (Str, Dex, Con, Int, Wis, Pow and Cha)
 to see what they mean or what they do.
 
-Or look at L<intro/Character Stats>.
+Or look at L<Character Stats>.
 
 You can let the dices reroll your stats with the I<Roll Again> button, you can
 I<Swap Stats>.
@@ -117,7 +117,7 @@ If you rearrange the windows like this:
 
 You will also see the face of the selected race. Click on I<Next Race> and read all
 the descriptions until you find the right race for your new character.
-Keep in mind that the races also affect the L<intro/Character Stats>.
+Keep in mind that the races also affect the L<Character Stats>.
 
 After you clicked I<Accept> you will see this:
 

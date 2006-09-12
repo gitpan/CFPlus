@@ -146,12 +146,19 @@ layout_update_font (CFPlus__Layout self)
 static void
 layout_get_pixel_size (CFPlus__Layout self, int *w, int *h)
 {
-  pango_layout_get_pixel_size (self->pl, w, h);
+  PangoRectangle rect;
 
-  if (!*w) *w = 1;
-  if (!*h) *h = 1;
+  // get_pixel_* wrongly rounds down
+  pango_layout_get_extents (self->pl, 0, &rect);
 
-  *w = (*w + 3) & ~3;
+  rect.width  = (rect.width  + PANGO_SCALE - 1) / PANGO_SCALE;
+  rect.height = (rect.height + PANGO_SCALE - 1) / PANGO_SCALE;
+
+  if (!rect.width)  rect.width  = 1;
+  if (!rect.height) rect.height = 1;
+
+  *w = rect.width;
+  *h = rect.height;
 }
 
 typedef uint16_t mapface;
@@ -164,8 +171,9 @@ typedef struct {
 } maptex;
 
 typedef struct {
-  int16_t darkness;
+  uint16_t darkness;
   mapface face[3];
+  uint8_t stat_width, stat_hp;
 } mapcell;
 
 typedef struct {
@@ -288,6 +296,7 @@ map_blank (CFPlus__Map self, int x0, int y0, int w, int h)
 {
   int x, y;
   maprow *row;
+  mapcell *cell;
 
   for (y = y0; y < y0 + h; y++)
     if (y >= 0)
@@ -303,7 +312,10 @@ map_blank (CFPlus__Map self, int x0, int y0, int w, int h)
               if (x >= row->c1)
                 break;
 
-              row->col[x - row->c0].darkness = -1;
+              cell = row->col + x - row->c0;
+              
+              cell->darkness = 0;
+              cell->stat_hp  = 0;
             }
       }
 }
@@ -514,8 +526,10 @@ SDL_ListModes ()
         SDL_GL_SetAttribute (SDL_GL_ACCUM_ALPHA_SIZE, 0);
 
         SDL_GL_SetAttribute (SDL_GL_DOUBLEBUFFER, 1);
+#if SDL_VERSION_ATLEAST(1,2,10)
         SDL_GL_SetAttribute (SDL_GL_ACCELERATED_VISUAL, 1);
         SDL_GL_SetAttribute (SDL_GL_SWAP_CONTROL, 1);
+#endif
 
         SDL_EnableUNICODE (1);
         SDL_EnableKeyRepeat (SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
@@ -1025,12 +1039,13 @@ cursor_pos (CFPlus::Layout self, int index)
 }
 
 void
-render (CFPlus::Layout self, float x, float y)
+render (CFPlus::Layout self, float x, float y, int flags = 0)
 	PPCODE:
         pango_opengl_render_layout_subpixel (
           self->pl,
           x * PANGO_SCALE, y * PANGO_SCALE,
-          self->r, self->g, self->b, self->a
+          self->r, self->g, self->b, self->a,
+          flags
         );
 
 MODULE = CFPlus	PACKAGE = CFPlus::Texture
@@ -1252,7 +1267,7 @@ scroll (CFPlus::Map self, int dx, int dy)
 }
 
 void
-map1a_update (CFPlus::Map self, SV *data_)
+map1a_update (CFPlus::Map self, SV *data_, int extmap)
 	CODE:
 {
         uint8_t *data = (uint8_t *)SvPVbyte_nolen (data_);
@@ -1260,7 +1275,7 @@ map1a_update (CFPlus::Map self, SV *data_)
         mapcell *cell;
         int x, y, flags;
 
-        while (data < data_end)
+        while (data < data_end - 1)
           {
             flags = (data [0] << 8) + data [1]; data += 2;
             
@@ -1271,17 +1286,46 @@ map1a_update (CFPlus::Map self, SV *data_)
 
             if (flags & 15)
               {
-                if (cell->darkness < 0)
+                if (!cell->darkness)
                   {
-                    cell->darkness = 0;
+                    cell->darkness = 256;
                     cell->face [0] = 0;
                     cell->face [1] = 0;
                     cell->face [2] = 0;
                   }
 
-                cell->darkness = flags & 8 ? *data++ : 255;
-
                 //TODO: don't trust server data to be in-range(!)
+
+                if (flags & 8)
+                  {
+                    if (extmap)
+                      {
+                        uint8_t ext, cmd;
+
+                        do
+                          {
+                            ext = *data++;
+                            cmd = ext & 0x3f;
+
+                            if (cmd < 4)
+                              cell->darkness = 255 - ext * 64 + 1;
+                            else if (cmd == 5) // health
+                              {
+                                cell->stat_width = 1;
+                                cell->stat_hp = *data++;
+                              }
+                            else if (cmd == 6) // monster width
+                              cell->stat_width = *data++ + 1;
+                            else if (ext & 0x40) // unknown, multibyte => skip
+                              data += *data + 1;
+                            else
+                              data++;
+                          }
+                        while (ext & 0x80);
+                      }
+                    else
+                      cell->darkness = *data++ + 1;
+                  }
 
                 if (flags & 4)
                   {
@@ -1299,7 +1343,10 @@ map1a_update (CFPlus::Map self, SV *data_)
                   }
               }
             else
-              cell->darkness = -1;
+              {
+                cell->darkness = 0;
+                cell->stat_hp = 0;
+              }
           }
 }
 
@@ -1409,7 +1456,7 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
 
                       face = cell->face [z];
 
-                      if (face)
+                      if (face && face < self->texs)
                         {
                           maptex tex = self->tex [face];
 
@@ -1436,6 +1483,37 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
 
         glDisable (GL_TEXTURE_2D);
         glDisable (GL_BLEND);
+
+        // top layer: overlays such as the health bar
+        for (y = 0; y < sh; y++)
+          if (0 <= y + vy && y + vy < self->rows)
+            {
+              maprow *row = self->row + (y + vy);
+
+              for (x = 0; x < sw; x++)
+                if (row->c0 <= x + vx && x + vx < row->c1)
+                  {
+                    mapcell *cell = row->col + (x + vx - row->c0);
+
+                    int px = x * 32;
+                    int py = y * 32;
+
+                    if (cell->stat_hp)
+                      {
+                        int width = cell->stat_width * 32;
+                        int thick = sh / 28 + 1 + cell->stat_width;
+
+                        glColor3ub (0,  0,  0);
+                        glRectf (px + 1, py - thick - 2,
+                                 px + width - 1, py);
+
+                        glColor3ub (cell->stat_hp, 255 - cell->stat_hp, 0);
+                        glRectf (px + 2,
+                                 py - thick - 1,
+                                 px + width - 2 - cell->stat_hp * (width - 4) / 255, py - 1);
+                      }
+                  }
+            }
 }
 
 void
@@ -1525,9 +1603,9 @@ fow_texture (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw,
                   {
                     mapcell *cell = row->col + (x + vx - row->c0);
 
-                    darkness[y * sw4 + x] = cell->darkness < 0
-                      ? 255 - FOW_DARKNESS
-                      : 255 - cell->darkness;
+                    darkness[y * sw4 + x] = cell->darkness
+                      ? 255 - (cell->darkness - 1)
+                      : 255 - FOW_DARKNESS;
                   }
             }
 
@@ -1652,9 +1730,9 @@ set_rect (CFPlus::Map self, int x0, int y0, uint8_t *data)
                     if (flags & 2) { face[1] = *data++ << 8; face[1] |= *data++; }
                     if (flags & 4) { face[2] = *data++ << 8; face[2] |= *data++; }
 
-                    if (cell->darkness <= 0)
+                    if (cell->darkness == 0)
                       {
-                        cell->darkness = -1;
+                        cell->darkness = 0;
 
                         for (z = 0; z <= 2; z++)
                           {
@@ -1802,6 +1880,7 @@ BOOT:
 	const_iv (GL_CONVOLUTION_BORDER_MODE),
 	const_iv (GL_CONSTANT_BORDER),
 	const_iv (GL_LINES),
+	const_iv (GL_LINE_STRIP),
 	const_iv (GL_LINE_LOOP),
 	const_iv (GL_QUADS),
 	const_iv (GL_QUAD_STRIP),
@@ -2007,5 +2086,4 @@ void glNewList (int list, int mode = GL_COMPILE)
 void glEndList ()
 
 void glCallList (int list)
-
 

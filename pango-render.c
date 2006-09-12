@@ -37,6 +37,7 @@ struct _PangoOpenGLRenderer
 {
   PangoRenderer parent_instance;
   float r, g, b, a; // modulate
+  int flags;
   GLuint curtex; // current texture
 };
 
@@ -267,7 +268,8 @@ draw_trapezoid (PangoRenderer   *renderer_,
 void 
 pango_opengl_render_layout_subpixel (PangoLayout *layout,
                                      int x, int y,
-                                     float r, float g, float b, float a)
+                                     float r, float g, float b, float a,
+                                     int flags)
 {
   PangoContext *context;
   PangoFontMap *fontmap;
@@ -281,6 +283,7 @@ pango_opengl_render_layout_subpixel (PangoLayout *layout,
   PANGO_OPENGL_RENDERER (renderer)->g = g;
   PANGO_OPENGL_RENDERER (renderer)->b = b;
   PANGO_OPENGL_RENDERER (renderer)->a = a;
+  PANGO_OPENGL_RENDERER (renderer)->flags = flags;
   
   pango_renderer_draw_layout (renderer, layout, x, y);
 }
@@ -288,9 +291,10 @@ pango_opengl_render_layout_subpixel (PangoLayout *layout,
 void 
 pango_opengl_render_layout (PangoLayout *layout,
 			    int x, int y,
-                            float r, float g, float b, float a)
+                            float r, float g, float b, float a,
+                            int flags)
 {
-  pango_opengl_render_layout_subpixel (layout, x * PANGO_SCALE, y * PANGO_SCALE, r, g, b, a);
+  pango_opengl_render_layout_subpixel (layout, x * PANGO_SCALE, y * PANGO_SCALE, r, g, b, a, flags);
 }
 
 static void
@@ -308,6 +312,7 @@ prepare_run (PangoRenderer *renderer, PangoLayoutRun *run)
   PangoOpenGLRenderer *glrenderer = (PangoOpenGLRenderer *)renderer;
   PangoColor *fg = 0;
   GSList *l;
+  unsigned char r, g, b, a;
 
   renderer->underline = PANGO_UNDERLINE_NONE;
   renderer->strikethrough = FALSE;
@@ -336,9 +341,28 @@ prepare_run (PangoRenderer *renderer, PangoLayoutRun *run)
     }
 
   if (fg)
-    glColor4f (fg->red / 65535., fg->green / 65535., fg->blue / 65535., glrenderer->a);
+    {
+      r = fg->red   * (255.f / 65535.f);
+      g = fg->green * (255.f / 65535.f);
+      b = fg->blue  * (255.f / 65535.f);
+    }
   else 
-    glColor4f (glrenderer->r, glrenderer->g, glrenderer->b, glrenderer->a);
+    {
+      r = glrenderer->r * 255.f;
+      g = glrenderer->g * 255.f;
+      b = glrenderer->b * 255.f;
+    }
+
+  a = glrenderer->a * 255.f;
+
+  if (glrenderer->flags & FLAG_INVERSE)
+    {
+      r ^= 0xffU;
+      g ^= 0xffU;
+      b ^= 0xffU;
+    } 
+
+  glColor4ub (r, g, b, a);
 }
 
 static void
