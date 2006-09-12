@@ -5,7 +5,7 @@ use utf8;
 
 use Storable;
 
-our $VERSION = 1;
+our $VERSION = 1.03;
 
 our $goto_document = sub { };
 our %wiki;

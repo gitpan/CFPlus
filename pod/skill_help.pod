@@ -171,6 +171,8 @@ rings or enchant non-magic rings to give them stat bonuses, this works
 similar to the L<alchemy skill|skill_description/alchemy>, only that
 you need to put the ingredients in a B<jeweler's workbench>.
 
+For a more detailed documentation look in the L<jeweler skill documentation|jeweler_skill>.
+
 =head2 jumping
 
 You can "skip" over one, two or three spaces in the selected
