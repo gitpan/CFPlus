@@ -1,5 +1,10 @@
 Revision history for Perl extension CFPlus
 
+0.52  Wed Sep 20 18:00:39 CEST 2006
+	- fix most map ghosting
+        - include npc speech bubble indication
+        - work around some crash
+
 0.5   Tue Sep 12 22:29:28 CEST 2006
 	- many fetaures and bugfixes.
 	- improve portability by making sdl-1.2.10 features optional.

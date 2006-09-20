@@ -232,7 +232,9 @@ sub ask_for_bind {
          $self->commit if $commit;
          $end_cb->() if $end_cb;
 
-         (delete $self->{binder})->destroy;
+         if (my $binder = delete $self->{binder}) {
+            $binder->destroy;
+         }
          1
       },
       on_focus_out => sub {

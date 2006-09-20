@@ -15,7 +15,7 @@ CFPlus - undocumented utility garbage for our crossfire client
 package CFPlus;
 
 BEGIN {
-   $VERSION = '0.51';
+   $VERSION = '0.52';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;

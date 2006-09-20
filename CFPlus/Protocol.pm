@@ -44,6 +44,12 @@ sub new {
    $self->{noface} = new_from_file CFPlus::Texture
       CFPlus::find_rcfile "noface.png", minify => 1, mipmap => 1;
 
+   {
+      $self->{dialogue} = my $tex = new_from_file CFPlus::Texture
+         CFPlus::find_rcfile "dialogue.png", minify => 1, mipmap => 1;
+      $self->{map}->set_texture (1, @$tex{qw(name w h s t)}, @{$tex->{minified}});
+   }
+
    $self->{open_container} = 0;
 
    # "global"

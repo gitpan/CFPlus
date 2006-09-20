@@ -49,7 +49,7 @@ WriteMakefile(
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
        BerkeleyDB    => 0.27,
-       Crossfire     => 0.9,
+       Crossfire     => 0.91,
        Time::HiRes   => 0,
        Event         => 1.01,
        AnyEvent      => 0,

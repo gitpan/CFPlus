@@ -171,9 +171,10 @@ typedef struct {
 } maptex;
 
 typedef struct {
-  uint16_t darkness;
+  uint32_t player;
   mapface face[3];
-  uint8_t stat_width, stat_hp;
+  uint16_t darkness;
+  uint8_t stat_width, stat_hp, flags;
 } mapcell;
 
 typedef struct {
@@ -316,6 +317,8 @@ map_blank (CFPlus__Map self, int x0, int y0, int w, int h)
               
               cell->darkness = 0;
               cell->stat_hp  = 0;
+              cell->flags    = 0;
+              cell->player   = 0;
             }
       }
 }
@@ -1245,14 +1248,14 @@ scroll (CFPlus::Map self, int dx, int dy)
 	CODE:
 {
         if (dx > 0)
-          map_blank (self, self->x, self->y, dx - 1, self->h);
+          map_blank (self, self->x, self->y, dx, self->h);
         else if (dx < 0)
-          map_blank (self, self->x + self->w + dx + 1, self->y, 1 - dx, self->h);
+          map_blank (self, self->x + self->w + dx + 1, self->y, -dx, self->h);
 
         if (dy > 0)
-          map_blank (self, self->x, self->y, self->w, dy - 1);
+          map_blank (self, self->x, self->y, self->w, dy);
         else if (dy < 0)
-          map_blank (self, self->x, self->y + self->h + dy + 1, self->w, 1 - dy);
+          map_blank (self, self->x, self->y + self->h + dy + 1, self->w, -dy);
 
 	self->ox += dx; self->x += dx;
 	self->oy += dy; self->y += dy;
@@ -1288,10 +1291,8 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
               {
                 if (!cell->darkness)
                   {
+                    memset (cell, 0, sizeof (*cell));
                     cell->darkness = 256;
-                    cell->face [0] = 0;
-                    cell->face [1] = 0;
-                    cell->face [2] = 0;
                   }
 
                 //TODO: don't trust server data to be in-range(!)
@@ -1316,6 +1317,15 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                               }
                             else if (cmd == 6) // monster width
                               cell->stat_width = *data++ + 1;
+                            else if (cmd == 0x47) // monster width
+                              {
+                                if (*data == 4)
+                                  ; // decode player tag
+
+                                data += *data + 1;
+                              }
+                            else if (cmd == 8) // cell flags
+                              cell->flags = *data++;
                             else if (ext & 0x40) // unknown, multibyte => skip
                               data += *data + 1;
                             else
@@ -1325,6 +1335,7 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                       }
                     else
                       cell->darkness = *data++ + 1;
+
                   }
 
                 if (flags & 4)
@@ -1346,6 +1357,8 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
               {
                 cell->darkness = 0;
                 cell->stat_hp = 0;
+                cell->flags = 0;
+                cell->player = 0;
               }
           }
 }
@@ -1459,15 +1472,13 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
                       if (face && face < self->texs)
                         {
                           maptex tex = self->tex [face];
-
                           int px = (x + 1) * 32 - tex.w;
                           int py = (y + 1) * 32 - tex.h;
 
                           if (last_name != tex.name)
                             {
                               glEnd ();
-                              last_name = tex.name;
-                              glBindTexture (GL_TEXTURE_2D, last_name);
+                              glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
                               glBegin (GL_QUADS);
                             }
 
@@ -1475,6 +1486,25 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
                           glTexCoord2f (0    , tex.t); glVertex2f (px        , py + tex.h);
                           glTexCoord2f (tex.s, tex.t); glVertex2f (px + tex.w, py + tex.h);
                           glTexCoord2f (tex.s, 0    ); glVertex2f (px + tex.w, py        );
+                        }
+
+                      if (cell->flags && z == 2)
+                        {
+                          if (cell->flags & 1)
+                            {
+                              maptex tex = self->tex [1];
+                              int px = (x + 1) * 32 - tex.w + 2;
+                              int py = (y + 1) * 32 - tex.h - 6;
+
+                              glEnd ();
+                              glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
+                              glBegin (GL_QUADS);
+
+                              glTexCoord2f (0    , 0    ); glVertex2f (px        , py        );
+                              glTexCoord2f (0    , tex.t); glVertex2f (px        , py + tex.h);
+                              glTexCoord2f (tex.s, tex.t); glVertex2f (px + tex.w, py + tex.h);
+                              glTexCoord2f (tex.s, 0    ); glVertex2f (px + tex.w, py        );
+                            }
                         }
                     }
               }

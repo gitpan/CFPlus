@@ -746,15 +746,17 @@ untouched, use L<use_skill> instead.
 
 =head2 rename
 
-Changes the custom name of an item.
+Changes/removes the custom name of given item (or the marked one).
 
-   rename <item name> to <new name>
+   rename oldname to newname
+   rename "old item name" to "new item name"
 
-(Note: the angle brackets (<>) are mandatory and part of the syntax)
+If either of the names contain spaces, you have to use the C<">-form,
+otherwise you can just write the name as-is. If you omit the old name, the
+marked item will be used instead.
 
-If '<item name>' is omitted, defaults to marked item.
-
-If 'to <new name>' is omitted, clears the custom name.
+If the new name is empty (i.e. C<"">), then the custom name will be
+removed from the item.
 
 Note: maximum allowed name length is 127 characters.
 
