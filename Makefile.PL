@@ -28,7 +28,7 @@ if ($^O =~ /win32/i or $^O =~ /mswin/) {
 
 EOF
    $INC  = "-I/gtk/include -I/gtk/include/pango-1.0 -I/gtk/include/glib-2.0 -I/gtk/lib/glib-2.0/include/ -I/gtk/include/freetype2";
-   $LIBS = "-L/gtk/lib -lSDL -lSDL_image -lSDL_mixer -lpango-1.0 -lpangoft2-1.0 -lgobject-2.0 -lgmodule-2.0 -lglib-2.0 -lfreetype -lfontconfig -lopengl32",
+   $LIBS = "-L/gtk/lib -lSDL -lSDL_image -lSDL_mixer -lpango-1.0 -lpangoft2-1.0 -lgobject-2.0 -lgmodule-2.0 -lglib-2.0 -lfreetype -lfontconfig -lopengl32 -lwininet",
 } else {
    $INC  = join " ", qx<sdl-config --cflags>, qx<pkg-config pangoft2 --cflags>;
    $LIBS = join " ", qx<sdl-config --libs>, "-lSDL_image -lSDL_mixer", qx<pkg-config pangoft2 --libs>, "-lGL";
@@ -51,7 +51,7 @@ WriteMakefile(
        BerkeleyDB    => 0.27,
        Crossfire     => 0.91,
        Time::HiRes   => 0,
-       Event         => 1.01,
+       Event         => 1.07,
        AnyEvent      => 0,
        Compress::LZF => 1.6,
        Pod::POM      => 0.15,

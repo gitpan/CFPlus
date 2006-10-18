@@ -30,3 +30,9 @@ L<Armor|stat_Arm> (Arm),
 L<Speed|stat_Spd> (Spd),
 and
 L<Weapon Speed|stat_WSp> (WSp).
+
+=head2 space
+
+A B<mapspace> is a square part of the world, that is just large enough to
+hold your character or a small monster.
+

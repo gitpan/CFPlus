@@ -625,8 +625,6 @@ sub drawinfo {
 
    $self->logprint ("info: ", $text);
 
-   my $time = sprintf "%02d:%02d:%02d", (localtime time)[2,1,0];
-
    # try to create single paragraphs of multiple lines sent by the server
    $text =~ s/(?<=\S)\n(?=\w)/ /g;
 
@@ -634,9 +632,8 @@ sub drawinfo {
    $text =~ s/\[b\](.*?)\[\/b\]/<b>\1<\/b>/g;
    $text =~ s/\[color=(.*?)\](.*?)\[\/color\]/<span foreground='\1'>\2<\/span>/g;
 
-   $self->{logview}->add_paragraph ({ fg => $color[$color], markup => $_ })
-      for map "<span foreground='#ffffff'>$time</span> $_", split /\n/, $text;
-   $self->{logview}->scroll_to_bottom;
+   ::message ({ fg => $color[$color], markup => $_ })
+      for split /\n/, $text;
 
    $self->{statusbox}->add ($text,
       group        => $text,
@@ -885,6 +882,7 @@ sub update_server_info {
     . "protocol version <tt>$self->{version}</tt>\n"
     . "minimap support $yesno[$self->{setup}{mapinfocmd} > 0]\n"
     . "extended command support $yesno[$self->{setup}{extcmd} > 0]\n"
+    . "editing support $yesno[!!$self->{editor_support}]\n"
     . "map attributes $yesno[$self->{setup}{extmap} > 0]\n"
     . "cfplus support $yesno[$self->{cfplus_ext} > 0]"
       . ($self->{cfplus_ext} > 0 ? ", version $self->{cfplus_ext}" : "") ."\n"
@@ -898,6 +896,15 @@ sub logged_in {
    $self->send_ext_req (cfplus_support => version => 1, sub {
       $self->{cfplus_ext} = $_[0]{version};
       $self->update_server_info;
+
+      if ($self->{cfplus_ext} >= 2) {
+         $self->send_ext_req ("editor_support", sub {
+            $self->{editor_support} = $_[0];
+            $self->update_server_info;
+
+            0
+         });
+      }
 
       0
    });
@@ -1093,3 +1100,4 @@ sub destroy {
 }
 
 1
+

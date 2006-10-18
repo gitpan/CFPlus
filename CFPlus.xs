@@ -3,7 +3,9 @@
 # define _WIN32_WINNT 0x0500 // needed to get win2000 api calls
 # include <malloc.h>
 # include <windows.h>
+# include <wininet.h>
 # pragma warning(disable:4244)
+# pragma warning(disable:4761)
 #endif
 
 #include "EXTERN.h"
@@ -38,16 +40,9 @@
 # include <netinet/in.h>
 # include <netinet/tcp.h>
 # include <inttypes.h>
-#else
- typedef unsigned char  uint8_t;
- typedef unsigned short uint16_t;
- typedef unsigned int   uint32_t;
- typedef   signed char  int8_t;
- typedef   signed short int16_t;
- typedef   signed int   int32_t;
 #endif
 
-#define OBJ_STR "\xef\xbf\xbc" /* U+FFFC, objetc replacement character */
+#define OBJ_STR "\xef\xbf\xbc" /* U+FFFC, object replacement character */
 
 #define FOW_DARKNESS 32
 
@@ -653,6 +648,35 @@ lowdelay (int fd, int val = 1)
 #endif
 
 void
+win32_proxy_info ()
+	PPCODE:
+{
+#ifdef _WIN32
+        char buffer[2048];
+        DWORD buflen;
+
+        EXTEND (SP, 3);
+	
+        buflen = sizeof (buffer);
+        if (InternetQueryOption (0, INTERNET_OPTION_PROXY, (void *)buffer, &buflen))
+          if (((INTERNET_PROXY_INFO *)buffer)->dwAccessType == INTERNET_OPEN_TYPE_PROXY)
+            {
+              PUSHs (newSVpv (((INTERNET_PROXY_INFO *)buffer)->lpszProxy, 0));
+
+              buflen = sizeof (buffer);
+              if (InternetQueryOption (0, INTERNET_OPTION_PROXY_USERNAME, (void *)buffer, &buflen))
+                {
+                  PUSHs (newSVpv (buffer, 0));
+
+                  buflen = sizeof (buffer);
+                  if (InternetQueryOption (0, INTERNET_OPTION_PROXY_PASSWORD, (void *)buffer, &buflen))
+                    PUSHs (newSVpv (buffer, 0));
+                }
+            }
+#endif
+}
+
+void
 add_font (char *file)
 	CODE:
         FcConfigAppFontAddFile (0, (const FcChar8 *)file);
@@ -764,9 +788,13 @@ fatal (char *message)
         _exit (1);
 
 void
-_exit (int retval)
+_exit (int retval = 0)
 	CODE:
+#ifdef WIN32
+        ExitThread (retval); // unclean, please beam me up
+#else
         _exit (retval);
+#endif
 
 MODULE = CFPlus	PACKAGE = CFPlus::Font
 
@@ -1335,7 +1363,6 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                       }
                     else
                       cell->darkness = *data++ + 1;
-
                   }
 
                 if (flags & 4)
@@ -1354,12 +1381,7 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                   }
               }
             else
-              {
-                cell->darkness = 0;
-                cell->stat_hp = 0;
-                cell->flags = 0;
-                cell->player = 0;
-              }
+              cell->darkness = 0;
           }
 }
 
@@ -1432,8 +1454,8 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
         int last_name;
         mapface face;
 
-        vx = self->x + self->w / 2 - sw / 2 - shift_x;
-        vy = self->y + self->h / 2 - sh / 2 - shift_y;
+        vx = self->x + ((self->w - sw) >> 1) - shift_x;
+        vy = self->y + ((self->h - sh) >> 1) - shift_y;
 
         /*
         int vx = self->vx = self->w >= sw

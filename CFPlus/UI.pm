@@ -900,11 +900,11 @@ sub render_child {
       {
          package CFPlus::UI::Base;
 
-         ($draw_x, $draw_y, $draw_w, $draw_h) =
+         local ($draw_x, $draw_y, $draw_w, $draw_h) =
             (0, 0, $self->{w}, $self->{h});
-      }
 
-      $self->_render;
+         $self->_render;
+      }
    };
 }
 
@@ -2961,6 +2961,10 @@ sub update {
          glClearColor 0, 0, 0, 0;
          glClear GL_COLOR_BUFFER_BIT;
 
+         package CFPlus::UI::Base;
+         local ($draw_x, $draw_y, $draw_w, $draw_h) =
+            (0, 0, $self->{w}, $self->{h});
+
          my $top = int $self->{children}[1]{range}[0];
 
          my $paridx = 0;
@@ -4126,11 +4130,11 @@ sub draw {
    {
       package CFPlus::UI::Base;
 
-      ($draw_x, $draw_y, $draw_w, $draw_h) =
+      local ($draw_x, $draw_y, $draw_w, $draw_h) =
          (0, 0, $self->{w}, $self->{h});
-   }
 
-   $self->_draw;
+      $self->_draw;
+   }
 }
 
 #############################################################################

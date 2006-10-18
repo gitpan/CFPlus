@@ -61,6 +61,133 @@ sub clr_commands {
       if $self->{completer};
 }
 
+sub server_login {
+   my ($server) = @_;
+
+   ::stop_game ();
+   local $::PROFILE->{host} = $server;
+   ::start_game ();
+}
+
+sub check_lwp($) {
+   my ($res) = @_;
+
+   $res->is_error
+      and die $res->status_line;
+
+   $res
+}
+
+sub editor_invoke {
+   my $editsup = $::CONN && $::CONN->{editor_support}
+      or return;
+
+   CFPlus::background {
+      print "preparing editor startup...\n";
+      CFPlus::set_proxy;
+
+      my $server = $editsup->{gameserver} || "default";
+      $server =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
+
+      local $ENV{CROSSFIRE_MAPDIR} = my $mapdir = "$Crossfire::VARDIR/map.$server"; mkdir $mapdir;
+      local $ENV{CROSSFIRE_LIBDIR} = my $libdir = "$Crossfire::VARDIR/lib.$server"; mkdir $libdir;
+
+      print "map directory is $mapdir\n";
+      print "lib directory is $libdir\n";
+
+      require LWP::UserAgent;
+
+      my $ua = LWP::UserAgent->new (
+         agent      => "cfplus $CFPlus::VERSION",
+         keep_alive => 1,
+         env_proxy  => 1,
+         timeout    => 30,
+      );
+
+      for my $file (qw(archetypes crossfire.0)) {
+         my $url = "$editsup->{lib_root}$file";
+         print "mirroring $url...\n";
+         check_lwp $ua->mirror ($url, "$libdir/$file");
+         printf "%s size %d octets\n", $file, -s "$libdir/$file";
+      }
+
+      if (1) { # upload a map
+         my $mapname = $::CONN->{map_info}[0];
+
+         my $mappath = "$mapdir/$mapname";
+
+         -e $mappath and die "$mappath already exists\n";
+
+         print "getting map revision for $mapname...\n";
+
+         # try to get the most recent head revision, what a hack,
+         # this should have been returned while downloading *sigh*
+         my $log = (check_lwp $ua->get ("$editsup->{cvs_root}/$mapname?view=log&logsort=rev"))->decoded_content;
+
+         if ($log =~ /\?rev=(\d+\.\d+)"/) {
+            my $rev = $1;
+
+            print "downloading revision $rev...\n";
+
+            my $map = (check_lwp $ua->get ("$editsup->{cvs_root}/$mapname?rev=$rev"))->decoded_content;
+
+            my $meta = {
+               %$editsup,
+               path     => $mapname,
+               revision => $rev,
+               cf_login => $::PROFILE->{user},
+            };
+
+            require File::Basename;
+            require File::Path;
+
+            File::Path::mkpath (File::Basename::dirname ($mappath));
+            open my $fh, ">:raw:perlio", "$mappath.meta"
+               or die "$mappath.meta: $!\n";
+            print $fh CFPlus::to_json $meta;
+            close $fh;
+            open my $fh, ">:raw:perlio:utf8", $mappath
+               or die "$mappath: $!\n";
+            print $fh $map;
+            close $fh;
+
+            print "saved as $mappath\n";
+
+            print "invoking editor...\n";
+            exec "/root/s2/gce $mappath";#d#
+
+            # now upload it
+#           require HTTP::Request::Common;
+#
+#           my $res = $ua->post (
+#              $ENV{CFPLUS_UPLOAD},
+#              Content_Type => 'multipart/form-data',
+#              Content      => [
+#                 path        => $mapname,
+#                 mapdir      => $ENV{CROSSFIRE_MAPDIR},
+#                 map         => $map,
+#                 revision    => $rev,
+#                 cf_login    => $ENV{CFPLUS_LOGIN},
+#                 cf_password => $ENV{CFPLUS_PASSWORD},
+#                 comment     => "",
+#              ]
+#           );
+#
+#           if ($res->is_error) {
+#              # fatal condition
+#              warn $res->status_line;
+#           } else {
+#              # script replies are marked as {{..}}
+#              my @msgs = $res->decoded_content =~ m/\{\{(.*?)\}\}/g;
+#              warn map "$_\n", @msgs;
+#           }
+         } else {
+            die "viewvc parse error, unable to detect revision\n";
+         }
+      }
+   }
+}
+
 sub invoke_button_down {
    my ($self, $ev, $x, $y) = @_;
 
@@ -95,8 +222,7 @@ sub invoke_button_down {
          $self->update;
       };
    } elsif ($ev->{button} == 3) {
-      (new CFPlus::UI::Menu
-         items => [
+      my @items = (
             ["Help Browser…\tF1", sub { $::HELP_WINDOW->toggle_visibility }],
             ["Statistics\tF2",    sub { ::toggle_player_page ($::STATS_PAGE) }],
             ["Skills\tF3",        sub { ::toggle_player_page ($::SKILL_PAGE) }],
@@ -110,16 +236,41 @@ sub invoke_button_down {
                   : "Enable automatic pickup",
                sub { $::PICKUP_ENABLE->toggle }
             ],
-            ["Quit",
-               sub {
-                  if ($::CONN) {
-                     &::open_quit_dialog;
-                  } else {
-                     exit;
-                  }
+      );
+
+      if ($::CONN && $::CONN->{editor_support} && 0) {
+         push @items, [
+            "Edit this map <span size='xx-small'>(" . (CFPlus::asxml $::CONN->{map_info}[0]) . ")</span>",
+            \&editor_invoke,
+         ];
+
+         for my $type (qw(test name)) {
+            $::CONN->{editor_support}{type} ne $type
+               or next;
+            my $server = $::CONN->{editor_support}{"${type}server"}
+               or next;
+
+            push @items, [
+               "Login on $type server <span size='xx-small'>(" . (CFPlus::asxml $server) . ")</span>",
+               sub { server_login $server },
+            ];
+         }
+      }
+
+      push @items,
+         ["Quit",
+            sub {
+               if ($::CONN) {
+                  &::open_quit_dialog;
+               } else {
+                  exit;
                }
-            ],
+            }
          ],
+      ;
+
+      (new CFPlus::UI::Menu
+         items => \@items,
       )->popup ($ev);
    }
 
@@ -207,10 +358,11 @@ sub invoke_key_down {
          });
       $::BIND_EDITOR->start;
       $::BIND_EDITOR->show;
-   } elsif ($sym == CFPlus::SDLK_INSERT && not ($mod & CFPlus::KMOD_CTRL)) {
-      $::BIND_EDITOR->stop;
-      $::BIND_EDITOR->ask_for_bind_and_commit;
-      $::BIND_EDITOR->hide;
+#TODO: elmex, what was this supposed to do? it currently crashes the client.
+#   } elsif ($sym == CFPlus::SDLK_INSERT && not ($mod & CFPlus::KMOD_CTRL)) {
+#      $::BIND_EDITOR->stop;
+#      $::BIND_EDITOR->ask_for_bind_and_commit;
+#      $::BIND_EDITOR->hide;
    } elsif (!$::CONN) {
       return 0; # bindings further down need a valid connection
 
@@ -220,10 +372,12 @@ sub invoke_key_down {
       $::CONN->user_send ("take");
    } elsif ($uni == ord " ") {
       $::CONN->user_send ("apply");
+   } elsif ($uni == 13) {
+      $::CONN->user_send ("examine");
    } elsif ($uni == ord ".") {
       $::CONN->user_send ($self->{completer}{last_command})
          if exists $self->{completer}{last_command};
-   } elsif (my $bind_cmd = $::CFG->{profile}{default}{bindings}{$mod}{$sym}) {
+   } elsif (my $bind_cmd = $::PROFILE->{bindings}{$mod}{$sym}) {
       $::CONN->user_send ($_) for @$bind_cmd;
    } elsif (($sym == CFPlus::SDLK_KP_PLUS  && !$mod) || $uni == ord "+") {
       $::CONN->user_send ("rotateshoottype +");
@@ -743,3 +897,4 @@ sub _draw {
 }
 
 1
+

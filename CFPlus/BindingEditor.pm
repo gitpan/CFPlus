@@ -131,13 +131,13 @@ sub new {
 
 sub cfg_bind {
    my ($self, $mod, $sym, $cmds) = @_;
-   $::CFG->{profile}{default}{bindings}{$mod}{$sym} = $cmds;
+   $::PROFILE->{bindings}{$mod}{$sym} = $cmds;
    ::update_bindings ();
 }
 
 sub cfg_unbind {
    my ($self, $mod, $sym, $cmds) = @_;
-   delete $::CFG->{profile}{default}{bindings}{$mod}{$sym};
+   delete $::PROFILE->{bindings}{$mod}{$sym};
    ::update_bindings ();
 }
 

@@ -40,6 +40,51 @@ as suitable fonts are installed.
 
 =head1 Usage
 
+=head2 X<the_keyboard>Keyboard/Keymappings
+
+The keyboard works quite similar to other programs: If a widget (e.g. a text entry) has the focus,
+you can enter and edit text there.
+
+Special key bindings apply to the playing area. It needs to be focused to
+work. If it doesn't have the focus, it will be tinted in red, in that case
+you can focus it by clicking into it.
+
+The following keys are available in the playing area:
+
+=over 4
+
+=item B<F1>..B<F9> - open various dialogs (use the right mouse button menu to see which).
+
+=item B<Tab> - toggle (make visible/invisible) the playerbook window.
+
+=item B<Spacebar> - apply the item below you (selected by the server, usually the topmost item).
+
+=item B<Return>, B<Enter> - examine the item below you (selected by the server, usually the topmost item).
+
+=item B<,> (the comma) - take the item below you (selected by the server, usually the topmost item).
+
+=item Cursor/Arrow Keys, Keypad-B<12346789> - try to move in the given direction.
+
+=item Keypad-B<5> - use your current range slot on yourself or the space where you are standing.
+
+=item B<Shift>-I<direction> - use your current weapon to attack the space indicated by the direction key.
+
+=item B<Ctrl>-I<direction> - run into the indicate direction as fats as possible, attacking everything in your way.
+
+=item B<+>, Keypad-B<+> - rotate through your range weapons.
+
+=item B<->, Keypad-B<-> - rotate through your range weapons, the other way round.
+
+=item B<'> - open the completer.
+
+=item B<"> - open the completer, presetting it with your current communication command.
+
+=item B<a>-B<z> (lowercase characters) - open the completer, presetting it with the character types.
+
+=item B<Ctrl>-B<Insert> - open the macro recorder/key binding editor and start recording.
+
+=back
+
 =head2 The Map
 
 The map is always displayed in the background, behind all other windows and UI elements.

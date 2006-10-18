@@ -1,5 +1,9 @@
 Revision history for Perl extension CFPlus
 
+0.53  Wed Oct 18 14:35:28 CEST 2006
+	- add win32 splashscreen.
+        - moved crossfire data directory to %APPDATA% on win32.
+
 0.52  Wed Sep 20 18:00:39 CEST 2006
 	- fix most map ghosting
         - include npc speech bubble indication

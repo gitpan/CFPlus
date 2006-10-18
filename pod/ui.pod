@@ -1,6 +1,50 @@
+=head1 X<tip_of_the_day>Tips of the Day
+
+This section contains the Tips of the Day, ordered by most important to
+least important.
+
+=head2 Tutorial
+
+For first time users of CF+, consider skimming through the
+L<tutorial>. You can also access it by pressing the B<Help> button at the
+top.
+
+=head2 Apply and Examine Keys
+
+The B<Spacebar> usually applies the topmost object on the ground, while
+the B<Return> (or B<Enter>) key examines it. See L<the keyboard|the_keyboard>
+for more keyboard mappings.
+
+=head2 The Completer
+
+You can type most commands by simply typing an B<abbreviation> whenever the
+play area has the keyboard focus.  See L<the keyboard|the_keyboard>
+for more info.
+
+=head2 The Mouse
+
+The left mouse button usually B<examines> an item. The middle mouse
+button usually B<applies> an item (which can mean a lot of things, such
+as drinking, wearing, wielding and so on). The right mouse button usually
+opens a B<menu> with further options. For example, the right-mouse-button
+menu of the playing area gives you quick access to the playerbook and
+autopickup, while the RMB-menu in the skills window lets you create key
+bindings for using skills.
+
+=head2 Autopickup
+
+You can let your character automatically pick up stuff when you are moving
+over a L<map space|glossary/space>: First select which items to pick up in the
+B<Setup/Pickup> window, then enable/disable it using the right mouse
+button menu of the playing area.
+
+It's customary to disable autopickup in civilised areas, to reduce the
+risk of taking an item you should not pick up.
+
+
 =head1 X<tooltip>Tooltips
 
-This section just contains some of the tooltips of the Crossfire+ client.
+This section contains some of the tooltips of the Crossfire+ client.
 
 =head2 X<stat_health>
 
@@ -148,6 +192,7 @@ as redefining key bindings.
 =head2 X<charcreation_focus>
 
 Press a key (click on the entry to make sure it has keyboard focus)
+
 
 =head1 X<ui>User Interface Text Fragments
 

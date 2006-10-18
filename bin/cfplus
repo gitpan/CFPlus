@@ -1,5 +1,26 @@
 #!/opt/bin/perl
 
+my $startup_done = sub { };
+
+# do splash-screen thingy on win32
+BEGIN {
+   if (%PAR::LibCache && $^O eq "MSWin32") {
+      while (my ($filename, $zip) = each %PAR::LibCache) {
+         $zip->extractMember ("SPLASH.bmp", "$ENV{PAR_TEMP}/SPLASH.bmp");
+      }
+
+      require Win32::GUI::SplashScreen;
+
+      Win32::GUI::SplashScreen::Show (
+         -file => "$ENV{PAR_TEMP}/SPLASH.bmp",
+      );
+
+      $startup_done = sub {
+         Win32::GUI::SplashScreen::Done (1);
+      };
+   }
+}
+
 use strict;
 use utf8;
 
@@ -10,7 +31,7 @@ BEGIN {
 
       while (my ($filename, $zip) = each %PAR::LibCache) {
          for ($zip->memberNames) {
-            next unless /^\/root\/(.*)/;
+            next unless /^root\/(.*)/;
             $zip->extractMember ($_, "$ENV{PAR_TEMP}/$1")
                unless -e "$ENV{PAR_TEMP}/$1";
          }
@@ -49,19 +70,9 @@ $Event::Eval = 0;
 $Event::DIED = sub {
    # TODO: display dialog box or so
    Carp::cluck $_[1];#d#TODO: remove when stable
-   CFPlus::error $_[1];
-};
-
-$SIG{__DIE__} = sub {
-   return if CFPlus::in_destruct;
-   Carp::cluck $_[0];
-   CFPlus::error $_[0];
    return;#d#
-   #return unless defined $^S && !$^S;
-   $Event::DIED->(undef, $_[0]);
+   CFPlus::fatal ($_[1]);
 };
-
-our $VERSION = '0.9';
 
 my $MAX_FPS = 60;
 my $MIN_FPS =  5; # unused as of yet
@@ -73,6 +84,7 @@ our $NOW;
 
 our $CFG;
 our $CONN;
+our $PROFILE; # current profile
 our $FAST; # fast, low-quality mode, possibly useful for software-rendering
 
 our $WANT_REFRESH;
@@ -146,6 +158,17 @@ sub status {
 
 sub debug {
    $DEBUG_STATUS->set_text ($_[0]);
+}
+
+sub message {
+   my ($para) = @_;
+
+   my $time = sprintf "%02d:%02d:%02d", (localtime time)[2,1,0];
+
+   $para->{markup} = "<span foreground='#ffffff'>$time</span> $para->{markup}";
+
+   $LOGVIEW->add_paragraph ($para);
+   $LOGVIEW->scroll_to_bottom;
 }
 
 sub destroy_query_dialog {
@@ -354,9 +377,11 @@ sub start_game {
    $LOGIN_BUTTON->set_text ("Logout");
    $SETUP_DIALOG->hide;
 
+   $PROFILE = $CFG->{profile}{default};
+
    my $mapsize = List::Util::min 32, List::Util::max 11, int $WIDTH * $CFG->{mapsize} * 0.01 / 32;
 
-   my ($host, $port) = split /:/, $CFG->{profile}{default}{host};
+   my ($host, $port) = split /:/, $PROFILE->{host};
 
    $MAP = new CFPlus::Map $mapsize, $mapsize;
    
@@ -364,12 +389,12 @@ sub start_game {
       new CFPlus::Protocol
          host => $host,
          port => $port || 13327,
-         user => $CFG->{profile}{default}{user},
-         pass => $CFG->{profile}{default}{password},
+         user => $PROFILE->{user},
+         pass => $PROFILE->{password},
          mapw => $mapsize,
          maph => $mapsize,
 
-         client => "cfplus $VERSION $] $^O",
+         client => "cfplus $CFPlus::VERSION $] $^O",
 
          map_widget => $MAPWIDGET,
          logview    => $LOGVIEW,
@@ -1047,13 +1072,24 @@ sub server_setup {
 
    $table->add (0, 12, new CFPlus::UI::Label valign => 0, align => 1, text => "Chat Command");
    $table->add (1, 12, my $saycmd = new CFPlus::UI::Entry
-      text => $CFG->{say_command},
+      text    => $CFG->{say_command},
       tooltip => "This is the command that will be used if you write a line in the message window entry or press <b>\"</b> in the map window. "
                 . "Usually you want to enter something like 'say' or 'shout' or 'gsay' here. "
                 . "But you could also set it to <b>tell <i>playername</i></b> to only chat with that user.",
       on_changed => sub {
          my ($self, $value) = @_;
          $CFG->{say_command} = $value;
+         0
+      }
+   );
+
+   $table->add (0, 13, new CFPlus::UI::Label valign => 0, align => 1, text => "Tip of the day");
+   $table->add (1, 13, my $saycmd = new CFPlus::UI::CheckBox
+      state   => $CFG->{show_tips},
+      tooltip => "Show the <b>Tip of the day</b> window at startup?",
+      on_changed => sub {
+         my ($self, $value) = @_;
+         $CFG->{show_tips} = $value;
          0
       }
    );
@@ -1127,64 +1163,6 @@ sub message_window {
    };
 
    $window
-}
-
-sub open_string_query {
-   my ($title, $cb, $txt, $tooltip) = @_;
-   my $dialog = new CFPlus::UI::Toplevel
-      x => "center",
-      y => "center",
-      z => 50,
-      force_w => $WIDTH * 4/5,
-      title => $title;
-
-   $dialog->add (
-      my $e = new CFPlus::UI::Entry
-         on_activate => sub { $cb->(@_); $dialog->hide; 0 },
-         on_key_down => sub { $_[1]->{sym} == 27 and $dialog->hide; 0 },
-         tooltip => $tooltip
-   );
-
-   $e->grab_focus;
-   $e->set_text ($txt) if $txt;
-   $dialog->show;
-}
-
-sub open_quit_dialog {
-   unless ($QUIT_DIALOG) {
-      $QUIT_DIALOG = new CFPlus::UI::Toplevel
-         x     => "center",
-         y     => "center",
-         z     => 50,
-         title => "Really Quit?",
-         on_key_down => sub {
-            my ($dialog, $ev) = @_;
-            $ev->{sym} == 27 and $dialog->hide;
-         }
-      ;
-
-      $QUIT_DIALOG->add (my $vb = new CFPlus::UI::VBox expand => 1);
-
-      $vb->add (new CFPlus::UI::Label
-         text      => "You should find a savebed and apply it first!",
-         max_w     => $WIDTH * 0.25,
-         ellipsize => 0,
-      );
-      $vb->add (my $hb = new CFPlus::UI::HBox expand => 1);
-      $hb->add (new CFPlus::UI::Button
-         text => "Ok",
-         expand => 1,
-         on_activate => sub { $QUIT_DIALOG->hide; 0 },
-      );
-      $hb->add (new CFPlus::UI::Button
-         text => "Quit anyway",
-         expand => 1,
-         on_activate => sub { exit },
-      );
-   }
-
-   $QUIT_DIALOG->show;
-   $QUIT_DIALOG->grab_focus;
 }
 
 sub autopickup_setup {
@@ -1403,9 +1381,11 @@ sub keyboard_setup {
    $refresh = $BIND_UPD_CB = sub {
       $binding_list->clear ();
 
-      for my $mod (keys %{$::CFG->{profile}{default}{bindings}}) {
-         for my $sym (keys %{$::CFG->{profile}{default}{bindings}{$mod}}) {
-            my $cmds = $::CFG->{profile}{default}{bindings}{$mod}{$sym};
+      return unless $PROFILE;
+
+      for my $mod (keys %{$PROFILE->{bindings}}) {
+         for my $sym (keys %{$PROFILE->{bindings}{$mod}}) {
+            my $cmds = $PROFILE->{bindings}{$mod}{$sym};
             next unless ref $cmds eq 'ARRAY' and @$cmds > 0;
 
             my $lbl = join "; ", @$cmds;
@@ -1416,7 +1396,7 @@ sub keyboard_setup {
                   tooltip => "Deletes the binding",
                   on_activate => sub {
                      $binding_list->remove ($hb);
-                     delete $::CFG->{profile}{default}{bindings}{$mod}{$sym};
+                     delete $PROFILE->{bindings}{$mod}{$sym};
                      0
                   });
 
@@ -1425,7 +1405,7 @@ sub keyboard_setup {
                   tooltip => "Edits the binding",
                   on_activate => sub {
                      $::BIND_EDITOR->set_binding (
-                        $mod, $sym, $::CFG->{profile}{default}{bindings}{$mod}{$sym},
+                        $mod, $sym, $PROFILE->{bindings}{$mod}{$sym},
                         sub {
                            my ($nmod, $nsym, $ncmds) = @_;
                            $::BIND_EDITOR->cfg_unbind ($mod, $sym);
@@ -1513,7 +1493,7 @@ sub help_window {
    my $win = new CFPlus::UI::Toplevel
       x       => 'center',
       y       => 'center',
-      z       => 2,
+      z       => 4,
       name    => 'doc_browser',
       force_w => int $WIDTH  * 7/8,
       force_h => int $HEIGHT * 7/8,
@@ -1609,6 +1589,116 @@ sub help_window {
    };
 
    $win
+}
+
+sub open_string_query {
+   my ($title, $cb, $txt, $tooltip) = @_;
+   my $dialog = new CFPlus::UI::Toplevel
+      x => "center",
+      y => "center",
+      z => 50,
+      force_w => $WIDTH * 4/5,
+      title => $title;
+
+   $dialog->add (
+      my $e = new CFPlus::UI::Entry
+         on_activate => sub { $cb->(@_); $dialog->hide; 0 },
+         on_key_down => sub { $_[1]->{sym} == 27 and $dialog->hide; 0 },
+         tooltip => $tooltip
+   );
+
+   $e->grab_focus;
+   $e->set_text ($txt) if $txt;
+   $dialog->show;
+}
+
+sub open_quit_dialog {
+   unless ($QUIT_DIALOG) {
+      $QUIT_DIALOG = new CFPlus::UI::Toplevel
+         x     => "center",
+         y     => "center",
+         z     => 50,
+         title => "Really Quit?",
+         on_key_down => sub {
+            my ($dialog, $ev) = @_;
+            $ev->{sym} == 27 and $dialog->hide;
+         }
+      ;
+
+      $QUIT_DIALOG->add (my $vb = new CFPlus::UI::VBox expand => 1);
+
+      $vb->add (new CFPlus::UI::Label
+         text      => "You should find a savebed and apply it first!",
+         max_w     => $WIDTH * 0.25,
+         ellipsize => 0,
+      );
+      $vb->add (my $hb = new CFPlus::UI::HBox expand => 1);
+      $hb->add (new CFPlus::UI::Button
+         text => "Ok",
+         expand => 1,
+         on_activate => sub { $QUIT_DIALOG->hide; 0 },
+      );
+      $hb->add (new CFPlus::UI::Button
+         text => "Quit anyway",
+         expand => 1,
+         on_activate => sub { exit },
+      );
+   }
+
+   $QUIT_DIALOG->show;
+   $QUIT_DIALOG->grab_focus;
+}
+
+sub show_tip_of_the_day {
+   # find all tips
+   my @tod = CFPlus::Pod::find tip_of_the_day => "*";
+
+   my $todindex = $CFPlus::DB_STATE->get ("tip_of_the_day");
+   $todindex = 0 if $todindex >= @tod;
+   $CFPlus::DB_STATE->put (tip_of_the_day => $todindex + 1);
+
+   # create dialog
+   my $dialog;
+
+   my $close = sub {
+      $dialog->destroy;
+   };
+
+   $dialog = new CFPlus::UI::Toplevel
+      x => "center",
+      y => "center",
+      z => 3,
+      name    => 'tip_of_the_day',
+      force_w => int $WIDTH  * 4/9,
+      force_h => int $WIDTH  * 2/9,
+      title   => "Tip of the day #" . (1 + $todindex),
+      child   => my $vbox = new CFPlus::UI::VBox,
+      has_close_button => 1,
+      on_delete => $close,
+   ;
+
+   $vbox->add (my $viewer  = new CFPlus::UI::TextScroller
+                   expand => 1, fontsize => 0.8, padding_x => 4, padding_y => 4);
+   $viewer->add_paragraph (CFPlus::Pod::as_paragraphs CFPlus::Pod::section_of $tod[$todindex]);
+
+   $vbox->add (my $table = new CFPlus::UI::Table);
+
+   $table->add (0, 0, new CFPlus::UI::Button
+      text => "Close",
+      tooltip => "Close the tip of the day window. To never see it again, disable the tip of the day in the <b>Server Setup</b>.",
+      on_activate => $close,
+   );
+
+   $table->add (2, 0, new CFPlus::UI::Button
+      text => "Next",
+      tooltip => "Show the next <b>Tip of the day</b>.",
+      on_activate => sub {
+         $close->();
+         &show_tip_of_the_day;
+      },
+   );
+
+   $dialog->show;
 }
 
 sub sdl_init {
@@ -1977,6 +2067,7 @@ $SIG{INT} = $SIG{TERM} = sub { exit };
       pickup         => 0,
       inv_sort       => "mtime",
       default        => "profile", # default profile
+      show_tips      => 1,
    );
    
    while (my ($k, $v) = each %DEF_CFG) {
@@ -2030,9 +2121,13 @@ $SIG{INT} = $SIG{TERM} = sub { exit };
 #      warn $t2-$t1;
 #   }
 
+   $startup_done->();
+
    video_init;
    audio_init;
 }
+
+show_tip_of_the_day if $CFG->{show_tips};
 
 Event::loop;
 #CFPlus::SDL_Quit;

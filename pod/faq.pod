@@ -42,5 +42,3 @@ still be slow, though):
 
 =back
 
-=back
-

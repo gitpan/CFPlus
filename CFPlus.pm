@@ -14,16 +14,26 @@ CFPlus - undocumented utility garbage for our crossfire client
 
 package CFPlus;
 
+use Carp ();
+
 BEGIN {
-   $VERSION = '0.52';
+   $VERSION = '0.53';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
 }
 
+BEGIN {
+   $SIG{__DIE__} = sub {
+      return if CFPlus::in_destruct;
+      #CFPlus::fatal $_[0];#d#
+      CFPlus::error Carp::longmess $_[0];#d#
+      die;#d#
+   };
+}
+
 use utf8;
 
-use Carp ();
 use AnyEvent ();
 use BerkeleyDB;
 use Pod::POM ();
@@ -52,6 +62,66 @@ sub asxml($) {
    s/</&lt;/g;
 
    $_
+}
+
+sub socketpipe() {
+   socketpair my $fh1, my $fh2, Socket::AF_UNIX, Socket::SOCK_STREAM, Socket::PF_UNSPEC
+      or die "cannot establish bidiretcional pipe: $!\n";
+
+   ($fh1, $fh2)
+}
+
+sub background(&) {
+   my ($cb) = @_;
+
+   my ($fh_r, $fh_w) = CFPlus::socketpipe;
+
+   my $pid = fork;
+
+   if (defined $pid && !$pid) {
+      local $SIG{__DIE__};
+
+      open STDOUT, ">&", $fh_w;
+      open STDERR, ">&", $fh_w;
+      close $fh_r;
+      close $fh_w;
+
+      $| = 1;
+
+      eval { $cb->() };
+
+      if ($@) {
+         my $msg = $@;
+         $msg =~ s/\n+/\n/;
+         warn "FATAL: $msg";
+         CFPlus::_exit 1;
+      }
+
+      # win32 is fucked up, of course. exit will clean stuff up,
+      # which destroys our database etc. _exit will exit ALL
+      # forked processes, because of the dreaded fork emulation.
+      CFPlus::_exit 0;
+   }
+
+   close $fh_w;
+
+   my $buffer;
+
+   Event->io (fd => $fh_r, poll => 'r', cb => sub {
+      unless (sysread $fh_r, $buffer, 4096, length $buffer) {
+         $_[0]->w->cancel;
+         $buffer .= "done\n";
+      }
+
+      while ($buffer =~ s/^(.*)\n//) {
+         my $line = $1;
+         $line =~ s/\s+$//;
+         utf8::decode $line;
+         ::message ({
+            markup => "editor($pid): " . CFPlus::asxml $line,
+         });
+      }
+   });
 }
 
 package CFPlus::Database;
@@ -130,7 +200,42 @@ sub write_cfg {
    print $fh to_json $::CFG;
 }
 
+sub http_proxy {
+   my @proxy = win32_proxy_info;
+
+   if (@proxy) {
+      "http://" . (@proxy < 2 ? "" : @proxy < 3 ? "$proxy[1]\@" : "$proxy[1]:$proxy[2]\@") . $proxy[0]
+   } elsif (exists $ENV{http_proxy}) {
+      $ENV{http_proxy}
+   } else {
+     ()
+   }
+}
+
+sub set_proxy {
+   my $proxy = http_proxy
+      or return;
+
+   $ENV{http_proxy} = $proxy;
+}
+
 our $DB_ENV;
+our $DB_STATE;
+
+sub db_table($) {
+   my ($table) = @_;
+
+   $table =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
+
+   new CFPlus::Database
+      -Env      => $DB_ENV,
+      -Filename => $table,
+#      -Filename => "database",
+#      -Subname  => $table,
+      -Property => DB_CHKSUM,
+      -Flags    => DB_CREATE | DB_UPGRADE,
+         or die "unable to create/open database table $_[0]: $BerkeleyDB::Error"
+}
 
 {
    use strict;
@@ -149,21 +254,8 @@ our $DB_ENV;
                     -Flags => DB_CREATE | DB_RECOVER | DB_INIT_MPOOL | DB_INIT_LOCK | DB_INIT_TXN | $recover,
                     -SetFlags => DB_AUTO_COMMIT | DB_LOG_AUTOREMOVE,
                        or die "unable to create/open database home $Crossfire::VARDIR/cfplus: $BerkeleyDB::Error";
-}
 
-sub db_table($) {
-   my ($table) = @_;
-
-   $table =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
-
-   new CFPlus::Database
-      -Env      => $DB_ENV,
-      -Filename => $table,
-#      -Filename => "database",
-#      -Subname  => $table,
-      -Property => DB_CHKSUM,
-      -Flags    => DB_CREATE | DB_UPGRADE,
-         or die "unable to create/open database table $_[0]: $BerkeleyDB::Error"
+   $DB_STATE = db_table "state";
 }
 
 package CFPlus::Layout;
