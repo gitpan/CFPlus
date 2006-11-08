@@ -9,6 +9,8 @@ use CFPlus;
 use CFPlus::UI;
 use CFPlus::Pod;
 
+use Crossfire::Protocol::Base 0.95;
+
 use base 'Crossfire::Protocol::Base';
 
 sub new {
@@ -321,9 +323,8 @@ sub update_stats_window {
 sub user_send {
    my ($self, $command) = @_;
 
-   if ($self->{record}) {
-      push @{$self->{record}}, $command;
-   }
+   push @{$self->{record}}, $command
+      if $self->{record};
 
    $self->logprint ("send: ", $command);
    $self->send_command ($command);
@@ -667,6 +668,12 @@ sub spell_delete {
    my ($self, $spell) = @_;
 
    $::SPELL_PAGE->remove_spell ($spell);
+}
+
+sub setup {
+   my ($self, $setup) = @_;
+
+   $::MAP->resize ($self->{mapw}, $self->{maph});
 }
 
 sub addme_success {

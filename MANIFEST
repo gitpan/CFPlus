@@ -166,7 +166,7 @@ resources/arch/flint_and_steel.base.111.png
 resources/arch/scrollr.base.111.png
 resources/arch/stylus.base.111.png
 resources/arch/workbench.base.111.png
-pod/COPYING.pod
+pod/about.pod
 pod/command_help.pod
 pod/dmcommand_help.pod
 pod/faq.pod

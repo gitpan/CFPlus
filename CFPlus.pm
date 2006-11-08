@@ -17,7 +17,7 @@ package CFPlus;
 use Carp ();
 
 BEGIN {
-   $VERSION = '0.53';
+   $VERSION = '0.95';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
@@ -107,9 +107,9 @@ sub background(&) {
 
    my $buffer;
 
-   Event->io (fd => $fh_r, poll => 'r', cb => sub {
+   my $w; $w = AnyEvent->io (fh => $fh_r, poll => 'r', cb => sub {
       unless (sysread $fh_r, $buffer, 4096, length $buffer) {
-         $_[0]->w->cancel;
+         undef $w;
          $buffer .= "done\n";
       }
 

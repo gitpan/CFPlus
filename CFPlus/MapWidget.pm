@@ -195,11 +195,11 @@ sub invoke_button_down {
       $self->grab_focus;
       return unless $::CONN;
 
-      my $x = 1 + CFPlus::floor +($ev->{x} - $self->{sx0}) / $self->{tilesize} - $self->{sx};
-      my $y = 1 + CFPlus::floor +($ev->{y} - $self->{sy0}) / $self->{tilesize} - $self->{sy};
+      my $x = $self->{dx} + CFPlus::floor +($ev->{x} - $self->{sx0}) / $self->{tilesize};
+      my $y = $self->{dy} + CFPlus::floor +($ev->{y} - $self->{sy0}) / $self->{tilesize};
 
-      $x -= int 0.5 * $self->{sw};
-      $y -= int 0.5 * $self->{sh};
+      $x -= CFPlus::floor $::MAP->w * 0.5;
+      $y -= CFPlus::floor $::MAP->h * 0.5;
 
       $::CONN->lookat ($x, $y)
          if $::CONN;
@@ -238,7 +238,7 @@ sub invoke_button_down {
             ],
       );
 
-      if ($::CONN && $::CONN->{editor_support} && 0) {
+      if ($::CONN && $::CONN->{editor_support}) {
          push @items, [
             "Edit this map <span size='xx-small'>(" . (CFPlus::asxml $::CONN->{map_info}[0]) . ")</span>",
             \&editor_invoke,
@@ -448,8 +448,8 @@ sub invoke_key_up {
 sub set_magicmap {
    my ($self, $w, $h, $x, $y, $data) = @_;
 
-   $x -= $::MAP->ox + int 0.5 * $::MAP->w;
-   $y -= $::MAP->oy + int 0.5 * $::MAP->h;
+   $x -= $::MAP->ox + 1 + int 0.5 * $::MAP->w;
+   $y -= $::MAP->oy + 1 + int 0.5 * $::MAP->h;
 
    $self->{magicmap} = [$x, $y, $w, $h, $data];
 
@@ -470,17 +470,20 @@ sub draw {
    if (delete $self->{need_update}) {
       my $tilesize = $self->{tilesize} = int 32 * $::CFG->{map_scale};
 
-      my $sx = $self->{sx} = CFPlus::ceil $::CFG->{map_shift_x} / $tilesize;
-      my $sy = $self->{sy} = CFPlus::ceil $::CFG->{map_shift_y} / $tilesize;
+      my $sw = $self->{sw} = 1 + CFPlus::ceil $self->{w} / $tilesize;
+      my $sh = $self->{sh} = 1 + CFPlus::ceil $self->{h} / $tilesize;
+
+      my $sx = CFPlus::ceil $::CFG->{map_shift_x} / $tilesize;
+      my $sy = CFPlus::ceil $::CFG->{map_shift_y} / $tilesize;
 
       my $sx0 = $self->{sx0} = $::CFG->{map_shift_x} - $sx * $tilesize;
       my $sy0 = $self->{sy0} = $::CFG->{map_shift_y} - $sy * $tilesize;
 
-      my $sw = $self->{sw} = 1 + CFPlus::ceil $self->{w} / $tilesize;
-      my $sh = $self->{sh} = 1 + CFPlus::ceil $self->{h} / $tilesize;
+      my $dx = $self->{dx} = CFPlus::ceil 0.5 * ($::MAP->w - $sw) - $sx;
+      my $dy = $self->{dy} = CFPlus::ceil 0.5 * ($::MAP->h - $sh) - $sy;
 
       if ($::CFG->{fow_enable}) {
-         my ($w, $h, $data) = $::MAP->fow_texture ($sx, $sy, 0, 0, $sw, $sh);
+         my ($w, $h, $data) = $::MAP->fow_texture ($dx, $dy, $sw, $sh);
 
          if ($::CFG->{fow_smooth} && $CFPlus::OpenGL::GL_VERSION >= 1.2) { # smooth fog of war
             glConvolutionParameter (GL_CONVOLUTION_2D, GL_CONVOLUTION_BORDER_MODE, GL_CONSTANT_BORDER);
@@ -512,7 +515,7 @@ sub draw {
       glTranslate $sx0, $sy0;
       glScale $::CFG->{map_scale}, $::CFG->{map_scale};
 
-      $::MAP->draw ($sx, $sy, 0, 0, $sw, $sh);
+      $::MAP->draw ($dx, $dy, $sw, $sh);
 
       glScale 32, 32;
 
@@ -529,8 +532,8 @@ sub draw {
       if ($self->{magicmap}) {
          my ($x, $y, $w, $h, $data) = @{ $self->{magicmap} };
 
-         $x += $::MAP->ox - $sx + int 0.5 * ($::MAP->w - $sw + 1);
-         $y += $::MAP->oy - $sy + int 0.5 * ($::MAP->h - $sh + 1);
+         $x += $::MAP->ox + $self->{dx};
+         $y += $::MAP->oy + $self->{dy};
 
          glTranslate - $x - 1, - $y - 1;
          glBindTexture GL_TEXTURE_2D, $magicmap_tex->{name};

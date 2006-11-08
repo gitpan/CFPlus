@@ -383,7 +383,7 @@ sub start_game {
 
    my ($host, $port) = split /:/, $PROFILE->{host};
 
-   $MAP = new CFPlus::Map $mapsize, $mapsize;
+   $MAP = new CFPlus::Map;
    
    $CONN = eval {
       new CFPlus::Protocol

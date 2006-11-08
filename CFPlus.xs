@@ -1170,13 +1170,13 @@ draw_quad (SV *self, float x, float y, float w = 0., float h = 0.)
 MODULE = CFPlus	PACKAGE = CFPlus::Map
 
 CFPlus::Map
-new (SV *class, int map_width, int map_height)
+new (SV *class)
 	CODE:
         New (0, RETVAL, 1, struct map);
         RETVAL->x  = 0;
         RETVAL->y  = 0;
-        RETVAL->w  = map_width;
-        RETVAL->h  = map_height;
+        RETVAL->w  = 0;
+        RETVAL->h  = 0;
         RETVAL->ox = 0;
         RETVAL->oy = 0;
         RETVAL->faces = 8192;
@@ -1197,6 +1197,12 @@ DESTROY (CFPlus::Map self)
         Safefree (self->tex);
         Safefree (self);
 }
+
+void
+resize (CFPlus::Map self, int map_width, int map_height)
+	CODE:
+        self->w = map_width;
+        self->h = map_height;
 
 void
 clear (CFPlus::Map self)
@@ -1446,26 +1452,12 @@ mapmap (CFPlus::Map self, int x0, int y0, int w, int h)
         RETVAL
 
 void
-draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh)
+draw (CFPlus::Map self, int mx, int my, int sw, int sh)
 	CODE:
 {
-	int vx, vy;
         int x, y, z;
         int last_name;
         mapface face;
-
-        vx = self->x + ((self->w - sw) >> 1) - shift_x;
-        vy = self->y + ((self->h - sh) >> 1) - shift_y;
-
-        /*
-        int vx = self->vx = self->w >= sw
-          ? self->x + (self->w - sw) / 2
-          : MIN (self->x, MAX (self->x + self->w - sw + 1, self->vx));
-
-        int vy = self->vy = self->h >= sh
-          ? self->y + (self->h - sh) / 2
-          : MIN (self->y, MAX (self->y + self->h - sh + 1, self->vy));
-        */
 
         glColor4ub (255, 255, 255, 255);
 
@@ -1478,16 +1470,19 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
 
         last_name = 0;
 
+        mx += self->x;
+        my += self->y;
+
         for (z = 0; z < 3; z++)
           for (y = 0; y < sh; y++)
-            if (0 <= y + vy && y + vy < self->rows)
+            if (0 <= y + my && y + my < self->rows)
               {
-                maprow *row = self->row + (y + vy);
+                maprow *row = self->row + (y + my);
 
                 for (x = 0; x < sw; x++)
-                  if (row->c0 <= x + vx && x + vx < row->c1)
+                  if (row->c0 <= x + mx && x + mx < row->c1)
                     {
-                      mapcell *cell = row->col + (x + vx - row->c0);
+                      mapcell *cell = row->col + (x + mx - row->c0);
 
                       face = cell->face [z];
 
@@ -1538,14 +1533,14 @@ draw (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh
 
         // top layer: overlays such as the health bar
         for (y = 0; y < sh; y++)
-          if (0 <= y + vy && y + vy < self->rows)
+          if (0 <= y + my && y + my < self->rows)
             {
-              maprow *row = self->row + (y + vy);
+              maprow *row = self->row + (y + my);
 
               for (x = 0; x < sw; x++)
-                if (row->c0 <= x + vx && x + vx < row->c1)
+                if (row->c0 <= x + mx && x + mx < row->c1)
                   {
-                    mapcell *cell = row->col + (x + vx - row->c0);
+                    mapcell *cell = row->col + (x + mx - row->c0);
 
                     int px = x * 32;
                     int py = y * 32;
@@ -1629,10 +1624,9 @@ draw_magicmap (CFPlus::Map self, int dx, int dy, int w, int h, unsigned char *da
 }
 
 void
-fow_texture (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw, int sh)
+fow_texture (CFPlus::Map self, int mx, int my, int sw, int sh)
 	PPCODE:
 {
-	int vx, vy;
         int x, y;
         int sw4 = (sw + 3) & ~3;
 	SV *darkness_sv = sv_2mortal (newSV (sw4 * sh));
@@ -1642,18 +1636,18 @@ fow_texture (CFPlus::Map self, int shift_x, int shift_y, int x0, int y0, int sw,
         SvPOK_only (darkness_sv);
         SvCUR_set (darkness_sv, sw4 * sh);
 
-        vx = self->x + (self->w - sw + 1) / 2 - shift_x;
-        vy = self->y + (self->h - sh + 1) / 2 - shift_y;
+        mx += self->x;
+        my += self->y;
 
         for (y = 0; y < sh; y++)
-          if (0 <= y + vy && y + vy < self->rows)
+          if (0 <= y + my && y + my < self->rows)
             {
-              maprow *row = self->row + (y + vy);
+              maprow *row = self->row + (y + my);
 
               for (x = 0; x < sw; x++)
-                if (row->c0 <= x + vx && x + vx < row->c1)
+                if (row->c0 <= x + mx && x + mx < row->c1)
                   {
-                    mapcell *cell = row->col + (x + vx - row->c0);
+                    mapcell *cell = row->col + (x + mx - row->c0);
 
                     darkness[y * sw4 + x] = cell->darkness
                       ? 255 - (cell->darkness - 1)

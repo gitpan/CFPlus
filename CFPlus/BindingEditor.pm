@@ -29,6 +29,7 @@ my %ALLOWED_MODIFIERS = (
    CFPlus::KMOD_RALT   => "RALT",
    CFPlus::KMOD_RMETA  => "RMETA",
 );
+my $ALLOWED_MODIFIER_MASK = 0x0FC3; # this is the mask of the above ALLOWED_MODIFIERS or'ed together
 
 my %DIRECT_BIND_CHARS = map { $_ => 1 } qw/0 1 2 3 4 5 6 7 8 9/;
 my @DIRECT_BIND_KEYS = (
@@ -208,7 +209,7 @@ sub ask_for_bind {
       on_key_down => sub {
          my ($entry, $ev) = @_;
 
-         my $mod = $ev->{mod};
+         my $mod = $ev->{mod} & $ALLOWED_MODIFIER_MASK;
          my $sym = $ev->{sym};
 
          # XXX: This seems a little bit hackisch to me, but I have to ignore them

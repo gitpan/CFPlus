@@ -28,6 +28,12 @@ one of str, dex, con, int, wis, pow, cha. Value may not exceed 30.
 The player must have a skill readied. All experience added in this manner
 will go directly to the skill readied.
 
+=head2 arrest
+
+   arrest <player>
+
+Puts the named player into the nearest cell (corresonding to the region he is in).
+
 =head2 banish
 
    banish <player> 
@@ -352,6 +358,13 @@ enable the player to use the shout command.
 
 This will enable/disable your ability to cast spells and prayers anywhere
 as dm. Without argument it toggles between on and off.
+
+=head2 wizlook
+
+   wizlook
+
+This will temporarily increase your area of sight to the maximum. It will
+return to normal when lighting conditions change or when you move.
 
 =head2 wizpass
 

@@ -30,5 +30,6 @@ The L<Glossary|pod/glossary> is a list of game concepts and other stuff.
 The L<Dungeon Master Command Reference|pod/dmcommand_help> documents the commands
 normally only available to Dungeon Masters/Wizards.
 
-This Crossfire+ Client is B<Free Software> and copylefted under the L<GNU
-General Public License|pod/COPYING>.
+The L<About Page|pod/about> tells you about intricate licensing details,
+as well as the homepage of this program where you can get source and
+binaries.
