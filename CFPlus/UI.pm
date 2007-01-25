@@ -3,7 +3,6 @@ package CFPlus::UI;
 use utf8;
 use strict;
 
-use Scalar::Util ();
 use List::Util ();
 use Event;
 
@@ -237,7 +236,7 @@ sub new {
       @_
    }, $class;
 
-   Scalar::Util::weaken ($CFPlus::UI::WIDGET{$self+0} = $self);
+   CFPlus::weaken ($CFPlus::UI::WIDGET{$self+0} = $self);
 
    for (keys %$self) {
       if (/^on_(.*)$/) {
@@ -264,6 +263,7 @@ sub destroy {
    my ($self) = @_;
 
    $self->hide;
+   $self->emit ("destroy");
    %$self = ();
 }
 
@@ -506,6 +506,12 @@ sub connect {
    }
 }
 
+sub disconnect_all {
+   my ($self, $signal) = @_;
+
+   delete $self->{signal_cb}{$signal};
+}
+
 my %has_coords = (
    button_down  => 1,
    button_up    => 1,
@@ -516,8 +522,8 @@ my %has_coords = (
 sub emit {
    my ($self, $signal, @args) = @_;
 
-   # I do not really like this solution, but I dislike duplication
-   # and needlessly verbose code, too.
+   # I do not really like this solution, but I do not like duplication
+   # and needlessly verbose code, either.
    my @append
       = $has_coords{$signal}
         ? $args[0]->xy ($self)
@@ -525,10 +531,15 @@ sub emit {
 
    #warn +(caller(1))[3] . "emit $signal on $self (parent $self->{parent})\n";#d#
 
-   #d##TODO# stop propagating at first true, do not use sum
-   (List::Util::sum map $_->($self, @args, @append), @{$self->{signal_cb}{$signal} || []}) # before
-      || ($self->can ("invoke_$signal") || sub { 1 })->($self, @args, @append)             # closure
-      || ($self->{parent} && $self->{parent}->emit ($signal, @args))                       # parent
+   for my $cb (
+      @{$self->{signal_cb}{$signal} || []},		# before
+      ($self->can ("invoke_$signal") || sub { 1 }),	# closure
+   ) {
+      return $cb->($self, @args, @append) || next;
+   }
+
+   # parent
+   $self->{parent} && $self->{parent}->emit ($signal, @args)
 }
 
 sub find_widget {
@@ -546,7 +557,7 @@ sub find_widget {
 sub set_parent {
    my ($self, $parent) = @_;
 
-   Scalar::Util::weaken ($self->{parent} = $parent);
+   CFPlus::weaken ($self->{parent} = $parent);
    $self->set_visible if $parent->{visible};
 }
 
@@ -635,15 +646,16 @@ sub _draw {
    warn "no draw defined for $self\n";
 }
 
+my $cntx;#d#
 sub DESTROY {
    my ($self) = @_;
 
    return if CFPlus::in_destruct;
 
-   delete $WIDGET{$self+0};
-
    eval { $self->destroy };
    warn "exception during widget destruction: $@" if $@ & $@ != /during global destruction/;
+
+   delete $WIDGET{$self+0};
 }
 
 #############################################################################
@@ -1902,6 +1914,7 @@ sub new {
       can_focus  => 1,
       valign     => 0,
       can_events => 1,
+      ellipsise  => 0,
       #text      => ...
       #hidden    => "*",
       @_
@@ -1965,15 +1978,25 @@ sub invoke_key_down {
    } elsif ($sym == CFPlus::SDLK_RIGHT) {
       ++$self->{cursor} if $self->{cursor} < length $self->{text};
    } elsif ($sym == CFPlus::SDLK_HOME) {
-      $self->{cursor} = 0;
+      # what a hack
+      $self->{cursor} =
+         (substr $self->{text}, 0, $self->{cursor}) =~ /^(.*\012)/
+            ? length $1
+            : 0;
    } elsif ($sym == CFPlus::SDLK_END) {
-      $self->{cursor} = length $text;
-   } elsif ($uni ==  21) { # ctrl-u
+      # uh, again
+      $self->{cursor} =
+         (substr $self->{text}, $self->{cursor}) =~ /^([^\012]*)\012/
+            ? $self->{cursor} + length $1
+            : length $self->{text};
+   } elsif ($uni == 21) { # ctrl-u
       $text = "";
       $self->{cursor} = 0;
    } elsif ($uni == 27) {
       $self->emit ('escape');
-   } elsif ($uni) {
+   } elsif ($uni == 0x0d) {
+      substr $text, $self->{cursor}++, 0, "\012";
+   } elsif ($uni >= 0x20) {
       substr $text, $self->{cursor}++, 0, chr $uni;
    } else {
       return 0;
@@ -1982,6 +2005,7 @@ sub invoke_key_down {
    $self->_set_text ($text);
 
    $self->realloc;
+   $self->update;
 
    1
 }
@@ -2060,6 +2084,8 @@ sub _draw {
    }
 }
 
+#############################################################################
+
 package CFPlus::UI::Entry;
 
 our @ISA = CFPlus::UI::EntryBase::;
@@ -2071,7 +2097,7 @@ sub invoke_key_down {
 
    my $sym = $ev->{sym};
 
-   if ($sym == 13) {
+   if ($ev->{uni} == 0x0d || $sym == 13) {
       unshift @{$self->{history}},
          my $txt = $self->get_text;
 
@@ -2102,6 +2128,45 @@ sub invoke_key_down {
          $self->set_text ($self->{history_saveback});
       }
 
+   } else {
+      return $self->SUPER::invoke_key_down ($ev)
+   }
+
+   1
+}
+
+#############################################################################
+
+package CFPlus::UI::TextEdit;
+
+our @ISA = CFPlus::UI::EntryBase::;
+
+use CFPlus::OpenGL;
+
+sub move_cursor_ver {
+   my ($self, $dy) = @_;
+
+   my ($y, $x) = $self->{layout}->index_to_line_x ($self->{cursor});
+
+   $y += $dy;
+
+   if (defined (my $index = $self->{layout}->line_x_to_index ($y, $x))) {
+      $self->{cursor} = $index;
+      delete $self->{cur_h};
+      $self->update;
+      return;
+   }
+}
+
+sub invoke_key_down {
+   my ($self, $ev) = @_;
+
+   my $sym = $ev->{sym};
+
+   if ($sym == CFPlus::SDLK_UP) {
+      $self->move_cursor_ver (-1);
+   } elsif ($sym == CFPlus::SDLK_DOWN) {
+      $self->move_cursor_ver (+1);
    } else {
       return $self->SUPER::invoke_key_down ($ev)
    }
@@ -2262,7 +2327,7 @@ sub new {
    $self->{tex} ||= $texture_cache{$self->{path}} ||=
       new_from_file CFPlus::Texture CFPlus::find_rcfile $self->{path}, mipmap => 1;
 
-   Scalar::Util::weaken $texture_cache{$self->{path}};
+   CFPlus::weaken $texture_cache{$self->{path}};
 
    $self->{aspect} ||= $self->{tex}{w} / $self->{tex}{h};
 
@@ -2645,7 +2710,9 @@ sub invoke_mouse_wheel {
 
    my $delta = $self->{vertical} ? $ev->{dy} : $ev->{dx};
 
-   $self->set_value ($self->{range}[0] + $delta * $self->{range}[3] * 0.2);
+   my $pagepart = $ev->{mod} & CFPlus::KMOD_SHIFT ? 1 : 0.2;
+
+   $self->set_value ($self->{range}[0] + $delta * $self->{range}[3] * $pagepart);
 
    ! ! $delta
 }
@@ -3220,7 +3287,7 @@ sub new {
    );
 
    if ($self->{anim} && $self->{animspeed}) {
-      Scalar::Util::weaken (my $widget = $self);
+      CFPlus::weaken (my $widget = $self);
 
       $self->{timer} = Event->timer (
          at       => $self->{animspeed} * int $::NOW / $self->{animspeed},
@@ -3290,7 +3357,7 @@ package CFPlus::UI::Buttonbar;
 
 our @ISA = CFPlus::UI::HBox::;
 
-# TODO: should actualyl wrap buttons and other goodies.
+# TODO: should actually wrap buttons and other goodies.
 
 #############################################################################
 
@@ -3484,7 +3551,7 @@ sub new {
 sub add {
    my ($self, $title, $widget, $tooltip) = @_;
 
-   Scalar::Util::weaken $self;
+   CFPlus::weaken $self;
 
    $self->{buttonbar}->add (new CFPlus::UI::Button
       markup      => $title,
@@ -3578,7 +3645,7 @@ sub new {
       @_,
    );
 
-   Scalar::Util::weaken (my $this = $self);
+   CFPlus::weaken (my $this = $self);
 
    $self->{timer} = Event->timer (after => 1, interval => 1, cb => sub { $this->reorder });
 
@@ -3711,190 +3778,6 @@ sub destroy {
 
 #############################################################################
 
-package CFPlus::UI::Inventory;
-
-our @ISA = CFPlus::UI::Table::;
-
-sub new {
-   my $class = shift;
-
-   my $self = $class->SUPER::new (
-      col_expand => [0, 1, 0],
-      items      => [],
-      @_,
-   );
-
-   $self->set_sort_order (undef);
-
-   $self
-}
-
-sub update_items {
-   my ($self) = @_;
-
-   $self->clear;
-
-   my @item = $self->{sort}->(@{ $self->{items} });
-
-   my @adds;
-   my $row = 0;
-   for my $item ($self->{sort}->(@{ $self->{items} })) {
-      CFPlus::Item::update_widgets $item;
-
-      push @adds, 0, $row, $item->{face_widget};
-      push @adds, 1, $row, $item->{desc_widget};
-      push @adds, 2, $row, $item->{weight_widget};
-
-      $row++;
-   }
-
-   $self->add (@adds);
-}
-
-sub set_sort_order {
-   my ($self, $order) = @_;
-
-   $self->{sort} = $order ||= sub {
-      sort {
-         $a->{type} <=> $b->{type}
-            or $a->{name} cmp $b->{name}
-      } @_
-   };
-
-   $self->update_items;
-}
-
-sub set_items {
-   my ($self, $items) = @_;
-
-   $self->{items} = [$items ? values %$items : ()];
-   $self->update_items;
-}
-
-#############################################################################
-
-package CFPlus::UI::SpellList;
-
-our @ISA = CFPlus::UI::Table::;
-
-sub new {
-   my $class = shift;
-
-   my $self = $class->SUPER::new (
-      binding  => [],
-      commands => [],
-      @_,
-   )
-}
-
-my $TOOLTIP_ALL = "\n\n<small>Left click - ready spell\nMiddle click - invoke spell\nRight click - further options</small>";
-
-my @TOOLTIP_NAME = (align => -1, can_events => 1, can_hover => 1, tooltip =>
-   "<b>Name</b>. The name of the spell.$TOOLTIP_ALL");
-my @TOOLTIP_SKILL = (align => -1, can_events => 1, can_hover => 1, tooltip =>
-   "<b>Skill</b>. The skill (or magic school) required to be able to attempt casting this spell.$TOOLTIP_ALL");
-my @TOOLTIP_LVL = (align => 1, can_events => 1, can_hover => 1, tooltip =>
-   "<b>Level</b>. Minimum level the caster needs in the associated skill to be able to attempt casting this spell.$TOOLTIP_ALL");
-my @TOOLTIP_SP  = (align => 1, can_events => 1, can_hover => 1, tooltip =>
-   "<b>Spell points / Grace points</b>. Amount of spell or grace points used by each invocation.$TOOLTIP_ALL");
-my @TOOLTIP_DMG = (align => 1, can_events => 1, can_hover => 1, tooltip =>
-   "<b>Damage</b>. The amount of damage the spell deals when it hits.$TOOLTIP_ALL");
-
-sub rebuild_spell_list {
-   my ($self) = @_;
-
-   $CFPlus::UI::ROOT->on_refresh ($self => sub {
-      $self->clear;
-
-      return unless $::CONN;
-
-      $self->add (1, 0, new CFPlus::UI::Label text => "Spell Name", @TOOLTIP_NAME);
-      $self->add (2, 0, new CFPlus::UI::Label text => "Skill", @TOOLTIP_SKILL);
-      $self->add (3, 0, new CFPlus::UI::Label text => "Lvl"  , @TOOLTIP_LVL);
-      $self->add (4, 0, new CFPlus::UI::Label text => "Sp/Gp", @TOOLTIP_SP);
-      $self->add (5, 0, new CFPlus::UI::Label text => "Dmg"  , @TOOLTIP_DMG);
-
-      my $row = 0;
-
-      for (sort { $a cmp $b } keys %{ $self->{spell} }) {
-         my $spell = $self->{spell}{$_};
-
-         $row++;
-
-         my $spell_cb = sub {
-            my ($widget, $ev) = @_;
-
-            if ($ev->{button} == 1) {
-               $::CONN->user_send ("cast $spell->{name}");
-            } elsif ($ev->{button} == 2) {
-               $::CONN->user_send ("invoke $spell->{name}");
-            } elsif ($ev->{button} == 3) {
-               (new CFPlus::UI::Menu
-                  items => [
-                     ["bind <i>cast $spell->{name}</i> to a key"   => sub { $::BIND_EDITOR->do_quick_binding (["cast $spell->{name}"]) }],
-                     ["bind <i>invoke $spell->{name}</i> to a key" => sub { $::BIND_EDITOR->do_quick_binding (["invoke $spell->{name}"]) }],
-                  ],
-               )->popup ($ev);
-            } else {
-               return 0;
-            }
-
-            1
-         };
-
-         my $tooltip = (CFPlus::asxml $spell->{message}) . $TOOLTIP_ALL;
-
-         #TODO: add path info to tooltip
-         #$self->add (6, $row, new CFPlus::UI::Label text => $spell->{path});
-
-         $self->add (0, $row, new CFPlus::UI::Face
-            face       => $spell->{face},
-            can_hover  => 1,
-            can_events => 1,
-            tooltip    => $tooltip,
-            on_button_down => $spell_cb,
-         );
-
-         $self->add (1, $row, new CFPlus::UI::Label
-            expand     => 1,
-            text       => $spell->{name},
-            can_hover  => 1,
-            can_events => 1,
-            tooltip    => $tooltip,
-            on_button_down => $spell_cb,
-         );
-
-         $self->add (2, $row, new CFPlus::UI::Label text => $::CONN->{skill_info}{$spell->{skill}}, @TOOLTIP_SKILL);
-         $self->add (3, $row, new CFPlus::UI::Label text => $spell->{level}, @TOOLTIP_LVL);
-         $self->add (4, $row, new CFPlus::UI::Label text => $spell->{mana} || $spell->{grace}, @TOOLTIP_SP);
-         $self->add (5, $row, new CFPlus::UI::Label text => $spell->{damage}, @TOOLTIP_DMG);
-      }
-   });
-}
-
-sub add_spell {
-   my ($self, $spell) = @_;
-
-   $self->{spell}->{$spell->{name}} = $spell;
-   $self->rebuild_spell_list;
-}
-
-sub remove_spell {
-   my ($self, $spell) = @_;
-
-   delete $self->{spell}->{$spell->{name}};
-   $self->rebuild_spell_list;
-}
-
-sub clear_spells {
-   my ($self) = @_;
-
-   $self->{spell} = {};
-   $self->rebuild_spell_list;
-}
-
-#############################################################################
-
 package CFPlus::UI::Root;
 
 our @ISA = CFPlus::UI::Container::;
@@ -3911,7 +3794,7 @@ sub new {
       @_,
    );
 
-   Scalar::Util::weaken ($self->{root} = $self);
+   CFPlus::weaken ($self->{root} = $self);
 
    $self
 }

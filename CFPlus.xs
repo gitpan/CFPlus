@@ -16,6 +16,7 @@
 # undef pipe
 #endif
 
+#include <assert.h>
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -361,6 +362,10 @@ minpot (unsigned int n)
   return n + 1;
 }
 
+/* SDL should provide this, really. */
+#define SDLK_MODIFIER_MIN 300
+#define SDLK_MODIFIER_MAX 314
+
 MODULE = CFPlus	PACKAGE = CFPlus
 
 PROTOTYPES: ENABLE
@@ -373,6 +378,9 @@ BOOT:
     IV iv;
   } *civ, const_iv[] = {
 #	define const_iv(name) { # name, (IV)name }
+        const_iv (SDLK_MODIFIER_MIN),
+        const_iv (SDLK_MODIFIER_MAX),
+
 	const_iv (SDL_ACTIVEEVENT),
 	const_iv (SDL_KEYDOWN),
 	const_iv (SDL_KEYUP),
@@ -391,6 +399,11 @@ BOOT:
 	const_iv (SDL_VIDEORESIZE),
 	const_iv (SDL_VIDEOEXPOSE),
         const_iv (SDL_USEREVENT),
+
+        const_iv (SDL_APPINPUTFOCUS),
+        const_iv (SDL_APPMOUSEFOCUS),
+        const_iv (SDL_APPACTIVE),
+
 	const_iv (SDLK_KP0),
 	const_iv (SDLK_KP1),
 	const_iv (SDLK_KP2),
@@ -455,28 +468,38 @@ BOOT:
 	const_iv (SDLK_POWER),
 	const_iv (SDLK_EURO),
 	const_iv (SDLK_UNDO),
+
 	const_iv (KMOD_NONE),
+	const_iv (KMOD_SHIFT),
 	const_iv (KMOD_LSHIFT),
 	const_iv (KMOD_RSHIFT),
+	const_iv (KMOD_CTRL),
 	const_iv (KMOD_LCTRL),
 	const_iv (KMOD_RCTRL),
+	const_iv (KMOD_ALT),
 	const_iv (KMOD_LALT),
 	const_iv (KMOD_RALT),
+	const_iv (KMOD_META),
 	const_iv (KMOD_LMETA),
 	const_iv (KMOD_RMETA),
 	const_iv (KMOD_NUM),
 	const_iv (KMOD_CAPS),
 	const_iv (KMOD_MODE),
-	const_iv (KMOD_CTRL),
-	const_iv (KMOD_SHIFT),
-	const_iv (KMOD_ALT),
-	const_iv (KMOD_META)
 #	undef const_iv
   };
     
   for (civ = const_iv + sizeof (const_iv) / sizeof (const_iv [0]); civ-- > const_iv; )
     newCONSTSUB (stash, (char *)civ->name, newSViv (civ->iv));
+
+  assert (SDLK_MODIFIER_MIN == SDLK_NUMLOCK);
+  assert (SDLK_MODIFIER_MAX == SDLK_COMPOSE);
 }
+
+void
+weaken (SV *rv)
+	PROTOTYPE: $
+	CODE:
+        sv_rvweaken (rv);
 
 int
 in_destruct ()
@@ -589,6 +612,7 @@ SDL_PollEvent ()
                   hv_store (hv, "state",   5, newSViv (ev.key.state), 0);
                   hv_store (hv, "sym",     3, newSViv (ev.key.keysym.sym), 0);
                   hv_store (hv, "mod",     3, newSViv (ev.key.keysym.mod), 0);
+                  hv_store (hv, "cmod",    4, newSViv (SDL_GetModState ()), 0); /* current mode */
                   hv_store (hv, "unicode", 7, newSViv (ev.key.keysym.unicode), 0);
                   break;
 
@@ -1051,7 +1075,7 @@ xy_to_index (CFPlus::Layout self, int x, int y)
 {
 	int index, trailing;
         pango_layout_xy_to_index (self->pl, x * PANGO_SCALE, y * PANGO_SCALE, &index, &trailing);
-        RETVAL = index;
+        RETVAL = index + trailing;
 }
 	OUTPUT:
         RETVAL
@@ -1067,6 +1091,45 @@ cursor_pos (CFPlus::Layout self, int index)
         PUSHs (sv_2mortal (newSViv (strong_pos.x      / PANGO_SCALE)));
         PUSHs (sv_2mortal (newSViv (strong_pos.y      / PANGO_SCALE)));
         PUSHs (sv_2mortal (newSViv (strong_pos.height / PANGO_SCALE)));
+}
+
+void
+index_to_line_x (CFPlus::Layout self, int index, int trailing = 0)
+	PPCODE:
+{
+	int line, x;
+
+	pango_layout_index_to_line_x (self->pl, index, trailing, &line, &x);
+        /* pango bug: line is between 1..numlines, not 0..numlines-1 */
+
+        EXTEND (SP, 2);
+        PUSHs (sv_2mortal (newSViv (line - 1)));
+        PUSHs (sv_2mortal (newSViv (x / PANGO_SCALE)));
+}
+
+void
+line_x_to_index (CFPlus::Layout self, int line, int x)
+	PPCODE:
+{
+	PangoLayoutLine *lp;
+        int index, trailing;
+
+        if (line < 0)
+          XSRETURN_EMPTY;
+
+        if (!(lp = pango_layout_get_line (self->pl, line)))
+          XSRETURN_EMPTY; /* do better */
+
+        pango_layout_line_x_to_index (lp, x * PANGO_SCALE, &index, &trailing);
+
+        EXTEND (SP, 2);
+        if (GIMME_V == G_SCALAR)
+          PUSHs (sv_2mortal (newSViv (index + trailing)));
+        else
+          {
+            PUSHs (sv_2mortal (newSViv (index)));
+            PUSHs (sv_2mortal (newSViv (trailing)));
+          }
 }
 
 void
@@ -1351,10 +1414,10 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                               }
                             else if (cmd == 6) // monster width
                               cell->stat_width = *data++ + 1;
-                            else if (cmd == 0x47) // monster width
+                            else if (cmd == 0x47)
                               {
-                                if (*data == 4)
-                                  ; // decode player tag
+                                if (*data == 8)
+                                  ; // decode player uuid
 
                                 data += *data + 1;
                               }

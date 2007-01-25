@@ -16,8 +16,6 @@ package CFPlus::Texture;
 
 use strict;
 
-use Scalar::Util;
-
 use CFPlus::OpenGL;
 
 my %TEXTURES;
@@ -32,7 +30,7 @@ sub new {
       %data,
    }, $class;
 
-   Scalar::Util::weaken ($TEXTURES{$self+0} = $self);
+   CFPlus::weaken ($TEXTURES{$self+0} = $self);
 
    $self->upload;
 

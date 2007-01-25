@@ -17,19 +17,10 @@ package CFPlus;
 use Carp ();
 
 BEGIN {
-   $VERSION = '0.95';
+   $VERSION = '0.97';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
-}
-
-BEGIN {
-   $SIG{__DIE__} = sub {
-      return if CFPlus::in_destruct;
-      #CFPlus::fatal $_[0];#d#
-      CFPlus::error Carp::longmess $_[0];#d#
-      die;#d#
-   };
 }
 
 use utf8;
@@ -37,8 +28,14 @@ use utf8;
 use AnyEvent ();
 use BerkeleyDB;
 use Pod::POM ();
-use Scalar::Util ();
+use File::Path ();
 use Storable (); # finally
+
+BEGIN {
+   use Crossfire::Protocol::Base ();
+   *to_json   = \&Crossfire::Protocol::Base::to_json;
+   *from_json = \&Crossfire::Protocol::Base::from_json;
+}
 
 =item guard { BLOCK }
 
@@ -52,6 +49,16 @@ sub guard(&) {
 
 sub CFPlus::Guard::DESTROY {
    ${$_[0]}->()
+}
+
+=item shorten $string[, $maxlength]
+
+=cut
+
+sub shorten($;$) {
+   my ($str, $len) = @_;
+   substr $str, $len, (length $str), "..." if $len + 3 <= length $str;
+   $str
 }
 
 sub asxml($) {
@@ -71,8 +78,8 @@ sub socketpipe() {
    ($fh1, $fh2)
 }
 
-sub background(&) {
-   my ($cb) = @_;
+sub background(&;&) {
+   my ($bg, $cb) = @_;
 
    my ($fh_r, $fh_w) = CFPlus::socketpipe;
 
@@ -88,7 +95,7 @@ sub background(&) {
 
       $| = 1;
 
-      eval { $cb->() };
+      eval { $bg->() };
 
       if ($@) {
          my $msg = $@;
@@ -110,18 +117,32 @@ sub background(&) {
    my $w; $w = AnyEvent->io (fh => $fh_r, poll => 'r', cb => sub {
       unless (sysread $fh_r, $buffer, 4096, length $buffer) {
          undef $w;
-         $buffer .= "done\n";
+         $cb->();
+         return;
       }
 
       while ($buffer =~ s/^(.*)\n//) {
          my $line = $1;
          $line =~ s/\s+$//;
          utf8::decode $line;
-         ::message ({
-            markup => "editor($pid): " . CFPlus::asxml $line,
-         });
+         if ($line =~ /^\x{e877}json_msg (.*)$/s) {
+            $cb->(from_json $1);
+         } else {
+            ::message ({
+               markup => "background($pid): " . CFPlus::asxml $line,
+            });
+         }
       }
    });
+}
+
+sub background_msg {
+   my ($msg) = @_;
+
+   $msg = "\x{e877}json_msg " . to_json $msg;
+   $msg =~ s/\n//g;
+   utf8::encode $msg;
+   print $msg, "\n";
 }
 
 package CFPlus::Database;
@@ -142,8 +163,8 @@ sub put($$$) {
    my ($db, $key, $data) = @_;
 
    my $hkey = $db + 0;
-   Scalar::Util::weaken $db;
-   $DB_SYNC{$hkey} ||= AnyEvent->timer (after => 5, cb => sub {
+   CFPlus::weaken $db;
+   $DB_SYNC{$hkey} ||= AnyEvent->timer (after => 30, cb => sub {
       delete $DB_SYNC{$hkey};
       $db->db_sync if $db;
    });
@@ -162,12 +183,6 @@ sub find_rcfile($) {
    }
 
    die "FATAL: can't find required file $_[0]\n";
-}
-
-BEGIN {
-   use Crossfire::Protocol::Base ();
-   *to_json   = \&Crossfire::Protocol::Base::to_json;
-   *from_json = \&Crossfire::Protocol::Base::from_json;
 }
 
 sub read_cfg {
@@ -219,6 +234,28 @@ sub set_proxy {
    $ENV{http_proxy} = $proxy;
 }
 
+sub lwp_useragent {
+   require LWP::UserAgent;
+   
+   CFPlus::set_proxy;
+
+   my $ua = LWP::UserAgent->new (
+      agent      => "cfplus $VERSION",
+      keep_alive => 1,
+      env_proxy  => 1,
+      timeout    => 30,
+   );
+}
+
+sub lwp_check($) {
+   my ($res) = @_;
+
+   $res->is_error
+      and die $res->status_line;
+
+   $res
+}
+
 our $DB_ENV;
 our $DB_STATE;
 
@@ -237,25 +274,34 @@ sub db_table($) {
          or die "unable to create/open database table $_[0]: $BerkeleyDB::Error"
 }
 
-{
+our $DB_HOME = "$Crossfire::VARDIR/cfplus";
+
+sub open_db {
    use strict;
 
-   mkdir "$Crossfire::VARDIR/cfplus", 0777;
+   mkdir $DB_HOME, 0777;
    my $recover = $BerkeleyDB::db_version >= 4.4 
                  ? eval "DB_REGISTER | DB_RECOVER"
                  : 0;
 
    $DB_ENV = new BerkeleyDB::Env
-                    -Home => "$Crossfire::VARDIR/cfplus",
-                    -Cachesize => 1_000_000,
-                    -ErrFile => "$Crossfire::VARDIR/cfplus/errorlog.txt",
+                    -Home => $DB_HOME,
+                    -Cachesize => 8_000_000,
+                    -ErrFile => "$DB_HOME/errorlog.txt",
 #                 -ErrPrefix => "DATABASE",
                     -Verbose => 1,
                     -Flags => DB_CREATE | DB_RECOVER | DB_INIT_MPOOL | DB_INIT_LOCK | DB_INIT_TXN | $recover,
                     -SetFlags => DB_AUTO_COMMIT | DB_LOG_AUTOREMOVE,
-                       or die "unable to create/open database home $Crossfire::VARDIR/cfplus: $BerkeleyDB::Error";
+                       or die "unable to create/open database home $DB_HOME: $BerkeleyDB::Error";
 
    $DB_STATE = db_table "state";
+
+   1
+}
+
+unless (eval { open_db }) {
+   File::Path::rmtree $DB_HOME;
+   open_db;
 }
 
 package CFPlus::Layout;
@@ -263,217 +309,6 @@ package CFPlus::Layout;
 $CFPlus::OpenGL::SHUTDOWN_HOOK{"CFPlus::Layout"} = sub {
    reset_glyph_cache;
 };
-
-package CFPlus::Item;
-
-use strict;
-use Crossfire::Protocol::Constants;
-
-my $last_enter_count = 1;
-
-sub desc_string {
-   my ($self) = @_;
-
-   my $desc =
-      $self->{nrof} < 2
-         ? $self->{name}
-         : "$self->{nrof} × $self->{name_pl}";
-
-   $self->{flags} & F_OPEN
-      and $desc .= " (open)";
-   $self->{flags} & F_APPLIED
-      and $desc .= " (applied)";
-   $self->{flags} & F_UNPAID
-      and $desc .= " (unpaid)";
-   $self->{flags} & F_MAGIC
-      and $desc .= " (magic)";
-   $self->{flags} & F_CURSED
-      and $desc .= " (cursed)";
-   $self->{flags} & F_DAMNED
-      and $desc .= " (damned)";
-   $self->{flags} & F_LOCKED
-      and $desc .= " *";
-
-   $desc
-}
-
-sub weight_string {
-   my ($self) = @_;
-
-   my $weight = ($self->{nrof} || 1) * $self->{weight};
-
-   $weight < 0 ? "?" : $weight * 0.001
-}
-
-sub do_n_dialog {
-   my ($cb) = @_;
-
-   my $w = new CFPlus::UI::Toplevel
-      on_delete => sub { $_[0]->destroy; 1 },
-      has_close_button => 1,
-   ;
-
-   $w->add (my $vb = new CFPlus::UI::VBox x => "center", y => "center");
-   $vb->add (new CFPlus::UI::Label text => "Enter item count:");
-   $vb->add (my $entry = new CFPlus::UI::Entry
-      text => $last_enter_count,
-      on_activate => sub {
-         my ($entry) = @_;
-         $last_enter_count = $entry->get_text;
-         $cb->($last_enter_count);
-         $w->hide;
-         $w->destroy;
-
-         0
-      },
-      on_escape => sub { $w->destroy; 1 },
-   );
-   $entry->grab_focus;
-   $w->show;
-}
-
-sub update_widgets {
-   my ($self) = @_;
-
-   # necessary to avoid cyclic references
-   Scalar::Util::weaken $self;
-
-   my $button_cb = sub {
-      my (undef, $ev, $x, $y) = @_;
-
-      my $targ = $::CONN->{player}{tag};
-
-      if ($self->{container} == $::CONN->{player}{tag}) {
-         $targ = $::CONN->{open_container};
-      }
-
-      if (($ev->{mod} & CFPlus::KMOD_SHIFT) && $ev->{button} == 1) {
-         $::CONN->send ("move $targ $self->{tag} 0")
-            if $targ || !($self->{flags} & F_LOCKED);
-      } elsif (($ev->{mod} & CFPlus::KMOD_SHIFT) && $ev->{button} == 2) {
-         $self->{flags} & F_LOCKED
-            ? $::CONN->send ("lock " . pack "CN", 0, $self->{tag})
-            : $::CONN->send ("lock " . pack "CN", 1, $self->{tag})
-      } elsif ($ev->{button} == 1) {
-         $::CONN->send ("examine $self->{tag}");
-      } elsif ($ev->{button} == 2) {
-         $::CONN->send ("apply $self->{tag}");
-      } elsif ($ev->{button} == 3) {
-         my $move_prefix = $::CONN->{open_container} ? 'put' : 'drop';
-         if ($self->{container} == $::CONN->{open_container}) {
-            $move_prefix = "take";
-         }
-
-         my @menu_items = (
-            ["examine", sub { $::CONN->send ("examine $self->{tag}") }],
-            ["mark",    sub { $::CONN->send ("mark ". pack "N", $self->{tag}) }],
-            ["ignite/thaw",  # first try of an easier use of flint&steel
-               sub {
-                  $::CONN->send ("mark ". pack "N", $self->{tag});
-                  $::CONN->send ("command apply flint and steel");
-               }
-            ],
-            ["inscribe",  # first try of an easier use of flint&steel
-               sub {
-                  &::open_string_query ("Text to inscribe", sub {
-                     my ($entry, $txt) = @_;
-                     $::CONN->send ("mark ". pack "N", $self->{tag});
-                     $::CONN->send ("command use_skill inscription $txt");
-                  });
-               }
-            ],
-            ["rename",  # first try of an easier use of flint&steel
-               sub {
-                  &::open_string_query ("Rename item to:", sub {
-                     my ($entry, $txt) = @_;
-                     $::CONN->send ("mark ". pack "N", $self->{tag});
-                     $::CONN->send ("command rename to <$txt>");
-                  }, $self->{name},
-                  "If you input no name or erase the current custom name, the custom name will be unset");
-               }
-            ],
-            ["apply",   sub { $::CONN->send ("apply $self->{tag}") }],
-            (
-               $self->{flags} & F_LOCKED
-               ? (
-                  ["unlock", sub { $::CONN->send ("lock " . pack "CN", 0, $self->{tag}) }],
-                 )
-               : (
-                  ["lock",   sub { $::CONN->send ("lock " . pack "CN", 1, $self->{tag}) }],
-                  ["$move_prefix all",   sub { $::CONN->send ("move $targ $self->{tag} 0") }],
-                  ["$move_prefix &lt;n&gt;", 
-                     sub {
-                        do_n_dialog (sub { $::CONN->send ("move $targ $self->{tag} $_[0]") })
-                     }
-                  ]
-               )
-            ),
-         );
-
-         CFPlus::UI::Menu->new (items => \@menu_items)->popup ($ev);
-      }
-
-      1
-   };
-
-   my $tooltip_std = "<small>"
-                   . "Left click - examine item\n"
-                   . "Shift-Left click - " . ($self->{container} ? "move or drop" : "take") . " item\n"
-                   . "Middle click - apply\n"
-                   . "Shift-Middle click - lock/unlock\n"
-                   . "Right click - further options"
-                   . "</small>\n";
-
-   my $bg = $self->{flags} & F_CURSED ? [1  , 0  , 0, 0.5]
-          : $self->{flags} & F_MAGIC  ? [0.2, 0.2, 1, 0.5]
-          : undef;
-
-   $self->{face_widget} ||= new CFPlus::UI::Face 
-      can_events => 1,
-      can_hover  => 1,
-      anim       => $self->{anim},
-      animspeed  => $self->{animspeed}, # TODO# must be set at creation time
-      on_button_down => $button_cb,
-   ;
-   $self->{face_widget}{bg}        = $bg;
-   $self->{face_widget}{face}      = $self->{face};
-   $self->{face_widget}{anim}      = $self->{anim};
-   $self->{face_widget}{animspeed} = $self->{animspeed};
-   $self->{face_widget}->set_tooltip (
-      "<b>Face/Animation.</b>\n"
-    . "Item uses face #$self->{face}. "
-    . ($self->{animspeed} ? "Item uses animation #$self->{anim} at " . (1 / $self->{animspeed}) . "fps. " : "Item is not animated. ")
-    . "\n\n$tooltip_std"
-   );
-   
-   $self->{desc_widget} ||= new CFPlus::UI::Label
-      can_events => 1,
-      can_hover  => 1,
-      ellipsise  => 2,
-      align      => -1,
-      on_button_down => $button_cb,
-   ;
-   my $desc = CFPlus::Item::desc_string $self;
-   $self->{desc_widget}{bg} = $bg;
-   $self->{desc_widget}->set_text ($desc);
-   $self->{desc_widget}->set_tooltip ("<b>$desc</b>.\n$tooltip_std");
-
-   $self->{weight_widget} ||= new CFPlus::UI::Label
-      can_events => 1,
-      can_hover  => 1,
-      ellipsise  => 0,
-      align      => 0,
-      on_button_down => $button_cb,
-   ;
-   $self->{weight_widget}{bg} = $bg;
-   $self->{weight_widget}->set_text (CFPlus::Item::weight_string $self);
-   $self->{weight_widget}->set_tooltip (
-      "<b>Weight</b>.\n"
-    . ($self->{weight} >= 0 ? "One item weighs $self->{weight}g. " : "You have no idea how much this weighs. ")
-    . ($self->{nrof} ? "You have $self->{nrof} of it. " : "Item cannot stack with others of it's kind. ")
-    . "\n\n$tooltip_std"
-   );
-}
 
 1;
 

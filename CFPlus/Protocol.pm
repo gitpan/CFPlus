@@ -8,6 +8,8 @@ use Crossfire::Protocol::Constants;
 use CFPlus;
 use CFPlus::UI;
 use CFPlus::Pod;
+use CFPlus::Macro;
+use CFPlus::Item;
 
 use Crossfire::Protocol::Base 0.95;
 
@@ -290,10 +292,11 @@ sub update_stats_window {
             } elsif ($ev->{button} == 2) {
                $::CONN->user_send ("use_skill $name");
             } elsif ($ev->{button} == 3) {
+               my $shortname = CFPlus::shorten $name, 14;
                (new CFPlus::UI::Menu
                   items => [
-                     ["bind <i>ready_skill $name</i> to a key"   => sub { $::BIND_EDITOR->do_quick_binding (["ready_skill $name"]) }],
-                     ["bind <i>use_skill $name</i> to a key" => sub { $::BIND_EDITOR->do_quick_binding (["use_skill $name"]) }],
+                     ["bind <i>ready_skill $shortname</i> to a key" => sub { CFPlus::Macro::quick_macro ["ready_skill $name"] }],
+                     ["bind <i>use_skill $shortname</i> to a key"   => sub { CFPlus::Macro::quick_macro ["use_skill $name"]   }],
                   ],
                )->popup ($ev);
             } else {
@@ -320,10 +323,18 @@ sub update_stats_window {
    }
 }
 
+sub macro_send {
+   my ($self, $macro) = @_;
+
+   for my $cmd (@{ $macro->{action} }) {
+      $self->send_command ($cmd);
+   }
+}
+
 sub user_send {
    my ($self, $command) = @_;
 
-   push @{$self->{record}}, $command
+   $self->{record}->($command)
       if $self->{record};
 
    $self->logprint ("send: ", $command);
@@ -331,15 +342,10 @@ sub user_send {
    ::status ($command);
 }
 
-sub start_record {
-   my ($self) = @_;
+sub record {
+   my ($self, $cb) = @_;
 
-   $self->{record} = [];
-}
-
-sub stop_record {
-   my ($self) = @_;
-   return delete $self->{record};
+   $self->{record} = $cb;
 }
 
 sub map_scroll {
@@ -624,6 +630,8 @@ sub drawinfo {
       [0.74, 0.65, 0.41],
    );
 
+   my $fg = $color[$color % @color];
+
    $self->logprint ("info: ", $text);
 
    # try to create single paragraphs of multiple lines sent by the server
@@ -633,12 +641,12 @@ sub drawinfo {
    $text =~ s/\[b\](.*?)\[\/b\]/<b>\1<\/b>/g;
    $text =~ s/\[color=(.*?)\](.*?)\[\/color\]/<span foreground='\1'>\2<\/span>/g;
 
-   ::message ({ fg => $color[$color], markup => $_ })
+   ::message ({ fg => $fg, markup => $_ })
       for split /\n/, $text;
 
    $self->{statusbox}->add ($text,
       group        => $text,
-      fg           => $color[$color],
+      fg           => $fg,
       timeout      => $color >= 2 ? 180 : 10,
       tooltip_font => $::FONT_FIXED,
    );
@@ -658,7 +666,7 @@ sub spell_add {
    $spell->{message} =~ s/\n+$//;
    $spell->{message} ||= "Server did not provide a description for this spell.";
 
-   $::SPELL_PAGE->add_spell ($spell);
+   $::SPELL_LIST->add_spell ($spell);
 
    $self->{map_widget}->add_command ("invoke $spell->{name}", CFPlus::asxml $spell->{message});
    $self->{map_widget}->add_command ("cast $spell->{name}", CFPlus::asxml $spell->{message});
@@ -667,7 +675,7 @@ sub spell_add {
 sub spell_delete {
    my ($self, $spell) = @_;
 
-   $::SPELL_PAGE->remove_spell ($spell);
+   $::SPELL_LIST->remove_spell ($spell);
 }
 
 sub setup {
@@ -895,6 +903,8 @@ sub update_server_info {
       . ($self->{cfplus_ext} > 0 ? ", version $self->{cfplus_ext}" : "") ."\n"
     . "map size $self->{mapw}×$self->{maph}\n"
    );
+
+   ::setup_build_button ($self->{editor_support}->{builder_ui});
 }
 
 sub logged_in {
@@ -921,6 +931,14 @@ sub logged_in {
    $self->send_command ("output-sync $::CFG->{output_sync}");
    $self->send_command ("output-count $::CFG->{output_count}");
    $self->send_command ("pickup $::CFG->{pickup}");
+}
+
+sub buildat {
+   my ($self, $builditem, $x, $y) = @_;
+
+   if ($self->{cfplus_ext}) {
+      $self->send_ext_msg (builder_build => dx => $x, dy => $y, (ref ($builditem) eq 'HASH') ? %$builditem : (item => $builditem));
+   }
 }
 
 sub lookat {
@@ -973,7 +991,7 @@ sub new {
       @_,
    );
 
-   Scalar::Util::weaken (my $this = $self);
+   CFPlus::weaken (my $this = $self);
 
    $self->connect (delete => sub { $this->destroy; 1 });
 
@@ -1027,7 +1045,7 @@ sub new {
 sub update_options {
    my ($self) = @_;
 
-   Scalar::Util::weaken $self;
+   CFPlus::weaken $self;
 
    $self->{options}->clear;
    $self->{options}->add ($self->{bye_button});
@@ -1046,7 +1064,7 @@ sub update_options {
 sub feed {
    my ($self, $msg) = @_;
 
-   Scalar::Util::weaken $self;
+   CFPlus::weaken $self;
 
    if ($msg->{msgtype} eq "reply") {
       $self->{kw}{$_} = 1 for @{$msg->{add_topics} || []};

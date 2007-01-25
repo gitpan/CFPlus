@@ -8,6 +8,7 @@ use List::Util qw(min max);
 use CFPlus;
 use CFPlus::OpenGL;
 use CFPlus::UI;
+use CFPlus::Macro;
 
 our @ISA = CFPlus::UI::Base::;
 
@@ -69,22 +70,12 @@ sub server_login {
    ::start_game ();
 }
 
-sub check_lwp($) {
-   my ($res) = @_;
-
-   $res->is_error
-      and die $res->status_line;
-
-   $res
-}
-
 sub editor_invoke {
    my $editsup = $::CONN && $::CONN->{editor_support}
       or return;
 
    CFPlus::background {
       print "preparing editor startup...\n";
-      CFPlus::set_proxy;
 
       my $server = $editsup->{gameserver} || "default";
       $server =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
@@ -95,19 +86,12 @@ sub editor_invoke {
       print "map directory is $mapdir\n";
       print "lib directory is $libdir\n";
 
-      require LWP::UserAgent;
-
-      my $ua = LWP::UserAgent->new (
-         agent      => "cfplus $CFPlus::VERSION",
-         keep_alive => 1,
-         env_proxy  => 1,
-         timeout    => 30,
-      );
+      my $ua = CFPlus::lwp_useragent;
 
       for my $file (qw(archetypes crossfire.0)) {
          my $url = "$editsup->{lib_root}$file";
          print "mirroring $url...\n";
-         check_lwp $ua->mirror ($url, "$libdir/$file");
+         CFPlus::lwp_check $ua->mirror ($url, "$libdir/$file");
          printf "%s size %d octets\n", $file, -s "$libdir/$file";
       }
 
@@ -122,14 +106,14 @@ sub editor_invoke {
 
          # try to get the most recent head revision, what a hack,
          # this should have been returned while downloading *sigh*
-         my $log = (check_lwp $ua->get ("$editsup->{cvs_root}/$mapname?view=log&logsort=rev"))->decoded_content;
+         my $log = (CFPlus::lwp_check $ua->get ("$editsup->{cvs_root}/$mapname?view=log&logsort=rev"))->decoded_content;
 
          if ($log =~ /\?rev=(\d+\.\d+)"/) {
             my $rev = $1;
 
             print "downloading revision $rev...\n";
 
-            my $map = (check_lwp $ua->get ("$editsup->{cvs_root}/$mapname?rev=$rev"))->decoded_content;
+            my $map = (CFPlus::lwp_check $ua->get ("$editsup->{cvs_root}/$mapname?rev=$rev"))->decoded_content;
 
             my $meta = {
                %$editsup,
@@ -201,8 +185,13 @@ sub invoke_button_down {
       $x -= CFPlus::floor $::MAP->w * 0.5;
       $y -= CFPlus::floor $::MAP->h * 0.5;
 
-      $::CONN->lookat ($x, $y)
-         if $::CONN;
+      if ($::CONN) {
+         if ($::IN_BUILD_MODE) {
+            $::CONN->buildat ($::IN_BUILD_MODE, $x, $y);
+         } else {
+            $::CONN->lookat ($x, $y)
+         }
+      }
 
    } elsif ($ev->{button} == 2) {
       $self->grab_focus;
@@ -336,8 +325,8 @@ sub invoke_key_down {
 
    $mod &= CFPlus::KMOD_CTRL | CFPlus::KMOD_ALT | CFPlus::KMOD_SHIFT;
 
-   if ($uni == ord "\t") {
-      $::PL_WINDOW->toggle_visibility;
+   if ($sym == 9) {
+      ($mod & CFPlus::KMOD_SHIFT ? $::CONSOLE->{window} : $::PL_WINDOW)->toggle_visibility;
    } elsif ($sym == CFPlus::SDLK_F1 && !$mod) {
       $::HELP_WINDOW->toggle_visibility;
    } elsif ($sym == CFPlus::SDLK_F2 && !$mod) {
@@ -350,19 +339,6 @@ sub invoke_key_down {
       ::toggle_player_page ($::INVENTORY_PAGE);
    } elsif ($sym == CFPlus::SDLK_F9 && !$mod) {
       $::SETUP_DIALOG->toggle_visibility;
-   } elsif ($sym == CFPlus::SDLK_INSERT && $mod & CFPlus::KMOD_CTRL) {
-      $::BIND_EDITOR->set_binding (undef, undef, [],
-         sub {
-            my ($mod, $sym, $cmds) = @_;
-            $::BIND_EDITOR->cfg_bind ($mod, $sym, $cmds);
-         });
-      $::BIND_EDITOR->start;
-      $::BIND_EDITOR->show;
-#TODO: elmex, what was this supposed to do? it currently crashes the client.
-#   } elsif ($sym == CFPlus::SDLK_INSERT && not ($mod & CFPlus::KMOD_CTRL)) {
-#      $::BIND_EDITOR->stop;
-#      $::BIND_EDITOR->ask_for_bind_and_commit;
-#      $::BIND_EDITOR->hide;
    } elsif (!$::CONN) {
       return 0; # bindings further down need a valid connection
 
@@ -377,12 +353,15 @@ sub invoke_key_down {
    } elsif ($uni == ord ".") {
       $::CONN->user_send ($self->{completer}{last_command})
          if exists $self->{completer}{last_command};
-   } elsif (my $bind_cmd = $::PROFILE->{bindings}{$mod}{$sym}) {
-      $::CONN->user_send ($_) for @$bind_cmd;
+   } elsif (my @macros = CFPlus::Macro::match_event $ev) {
+      $::CONN->macro_send ($_) for @macros;
    } elsif (($sym == CFPlus::SDLK_KP_PLUS  && !$mod) || $uni == ord "+") {
       $::CONN->user_send ("rotateshoottype +");
    } elsif (($sym == CFPlus::SDLK_KP_MINUS && !$mod) || $uni == ord "-") {
       $::CONN->user_send ("rotateshoottype -");
+   } elsif ($uni == ord '!') {
+      $self->{completer}->set_prefix ("shout ");
+      $self->{completer}->show;
    } elsif ($uni == ord '"') {
       $self->{completer}->set_prefix ("$::CFG->{say_command} ");
       $self->{completer}->show;
@@ -689,7 +668,7 @@ sub new {
             (new CFPlus::UI::Menu
                items => [
                   ["bind <i>" . (CFPlus::asxml $self->{select}) . "</i> to a key"
-                   => sub { $::BIND_EDITOR->do_quick_binding ([$self->{select}], sub { $entry->grab_focus }) }]
+                   => sub { CFPlus::Macro::quick_macro [$self->{select}], sub { $entry->grab_focus } }]
                ],
             )->popup ($ev);
             return 1;

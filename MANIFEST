@@ -5,6 +5,8 @@ COPYING
 Makefile.PL
 typemap
 
+mkmanifest
+
 bin/cfplus
 bin/pod2wiki
 
@@ -14,9 +16,12 @@ CFPlus/Protocol.pm
 CFPlus/Texture.pm
 CFPlus/OpenGL.pm
 CFPlus/UI.pm
+CFPlus/UI/Inventory.pm
+CFPlus/UI/SpellList.pm
+CFPlus/Item.pm
 CFPlus/Pod.pm
 CFPlus/MapWidget.pm
-CFPlus/BindingEditor.pm
+CFPlus/Macro.pm
 glfunc.h
 
 texcache.c
@@ -24,6 +29,10 @@ pangoopengl.h
 pango-font.c
 pango-fontmap.c
 pango-render.c
+
+resources/fonts/LICENSE
+resources/fonts/README
+resources/sounds/README
 
 META.yml                                 Module meta-data (added by MakeMaker)
 
