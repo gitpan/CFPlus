@@ -45,7 +45,7 @@ tc_clear ()
   while (first_texture)
     {
       tc_texture *next = first_texture->next;
-      glDeleteTextures (1, &first_texture->name);
+      del_texture (first_texture->name);
       g_slice_free (tc_texture, first_texture);
       first_texture = next;
     }
@@ -79,7 +79,7 @@ tc_get (tc_area *area, int width, int height)
           match = g_slice_new (tc_texture);
           match->next = first_texture;
           first_texture = match;
-          glGenTextures (1, &match->name);
+          match->name = gen_texture ();
           match->avail = TC_HEIGHT;
 
           glBindTexture (GL_TEXTURE_2D, match->name);

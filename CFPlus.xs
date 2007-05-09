@@ -1,6 +1,6 @@
 #ifdef _WIN32
 # define WIN32_LEAN_AND_MEAN
-# define _WIN32_WINNT 0x0500 // needed to get win2000 api calls
+# define NTDDI_VERSION NTDDI_WIN2K // needed to get win2000 api calls
 # include <malloc.h>
 # include <windows.h>
 # include <wininet.h>
@@ -58,6 +58,8 @@
 # define PARACHUTE 0
 #endif
 
+static AV *texture_av;
+
 static struct
 {
 #define GL_FUNC(ptr,name) ptr name;
@@ -65,7 +67,8 @@ static struct
 #undef GL_FUNC
 } gl;
 
-static void gl_BlendFuncSeparate (GLenum sa, GLenum da, GLenum saa, GLenum daa)
+static void
+gl_BlendFuncSeparate (GLenum sa, GLenum da, GLenum saa, GLenum daa)
 {
   if (gl.BlendFuncSeparate)
     gl.BlendFuncSeparate (sa, da, saa, daa);
@@ -73,6 +76,30 @@ static void gl_BlendFuncSeparate (GLenum sa, GLenum da, GLenum saa, GLenum daa)
     gl.BlendFuncSeparateEXT (sa, da, saa, daa);
   else
     glBlendFunc (sa, da);
+}
+
+static GLuint
+gen_texture ()
+{
+  GLuint name;
+
+  if (AvFILL (texture_av) >= 0)
+    name = (GLuint)(size_t)av_pop (texture_av);
+  else
+    glGenTextures (1, &name);
+
+  return name;
+}
+
+static void
+del_texture (GLuint name)
+{
+  /* make a half-assed attempt at returning the memory used by the texture */
+  /* textures are frequently being reused by cfplus anyway */
+  /*glBindTexture (GL_TEXTURE_2D, name);*/
+  /*glTexImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, 0, 0, 0, GL_ALPHA, GL_UNSIGNED_BYTE, 0);*/
+  av_push (texture_av, (SV *)(size_t)name);
+  glDeleteTextures (1, &name);
 }
 
 #include "texcache.c"
@@ -157,20 +184,23 @@ layout_get_pixel_size (CFPlus__Layout self, int *w, int *h)
   *h = rect.height;
 }
 
-typedef uint16_t mapface;
+typedef uint16_t tileid;
+typedef uint16_t faceid;
 
 typedef struct {
-  GLint name;
+  int name;
   int w, h;
   float s, t;
   uint8_t r, g, b, a;
+  tileid smoothtile;
+  uint8_t smoothlevel;
 } maptex;
 
 typedef struct {
   uint32_t player;
-  mapface face[3];
+  tileid tile[3];
   uint16_t darkness;
-  uint8_t stat_width, stat_hp, flags;
+  uint8_t stat_width, stat_hp, flags, smoothmax;
 } mapcell;
 
 typedef struct {
@@ -181,11 +211,8 @@ typedef struct {
 typedef struct map {
   int x, y, w, h;
   int ox, oy; /* offset to virtual global coordinate system */
-  int faces;
-  mapface *face;
-
-  int texs;
-  maptex *tex;
+  int faces; tileid *face2tile; // [faceid]
+  int texs;  maptex *tex;       // [tileid]
 
   int32_t rows;
   maprow *row;
@@ -215,6 +242,26 @@ append (char *ptr, int sze, int inc)
 
 #define Append(type,ptr,sze,inc)  (ptr) = (type *)append  ((char *)ptr, (sze) * sizeof (type), (inc) * sizeof (type))
 #define Prepend(type,ptr,sze,inc) (ptr) = (type *)prepend ((char *)ptr, (sze) * sizeof (type), (inc) * sizeof (type))
+
+static void
+need_facenum (struct map *self, faceid face)
+{
+  while (self->faces <= face)
+    {
+      Append (tileid, self->face2tile, self->faces, self->faces);
+      self->faces *= 2;
+    }
+}
+
+static void
+need_texid (struct map *self, int texid)
+{
+  while (self->texs <= texid)
+    {
+      Append (maptex, self->tex, self->texs, self->texs);
+      self->texs *= 2;
+    }
+}
 
 static maprow *
 map_get_row (CFPlus__Map self, int y)
@@ -317,6 +364,22 @@ map_blank (CFPlus__Map self, int x0, int y0, int w, int h)
               cell->player   = 0;
             }
       }
+}
+
+typedef struct  {
+  tileid tile;
+  uint8_t x, y, level;
+} smooth_key;
+
+static void
+smooth_or_bits (HV *hv, smooth_key *key, IV bits)
+{
+  SV **sv = hv_fetch (hv, (char *)key, sizeof (*key), 1);
+
+  if (SvIOK (*sv))
+    SvIV_set (*sv, SvIVX (*sv) | bits);
+  else
+    sv_setiv (*sv, bits);
 }
 
 static void
@@ -580,10 +643,13 @@ SDL_SetVideoMode (int w, int h, int fullscreen)
         );
         if (RETVAL)
           {
+            av_clear (texture_av);
+
             SDL_WM_SetCaption ("Crossfire+ Client " VERSION, "Crossfire+");
 #           define GL_FUNC(ptr,name) gl.name = (ptr)SDL_GL_GetProcAddress ("gl" # name);
 #           include "glfunc.h"
 #           undef GL_FUNC
+
           }
 	OUTPUT:
         RETVAL
@@ -667,9 +733,7 @@ Mix_AllocateChannels (int numchans = -1)
 void
 lowdelay (int fd, int val = 1)
 	CODE:
-#ifndef _WIN32
-        setsockopt (fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof (val));
-#endif
+        setsockopt (fd, IPPROTO_TCP, TCP_NODELAY, (void *)&val, sizeof (val));
 
 void
 win32_proxy_info ()
@@ -1242,10 +1306,8 @@ new (SV *class)
         RETVAL->h  = 0;
         RETVAL->ox = 0;
         RETVAL->oy = 0;
-        RETVAL->faces = 8192;
-        Newz (0, RETVAL->face, RETVAL->faces, mapface);
-        RETVAL->texs = 8192;
-        Newz (0, RETVAL->tex, RETVAL->texs, maptex);
+        RETVAL->faces = 8192; Newz (0, RETVAL->face2tile, RETVAL->faces, tileid);
+        RETVAL->texs  = 8192; Newz (0, RETVAL->tex      , RETVAL->texs , maptex);
         RETVAL->rows = 0;
         RETVAL->row = 0;
 	OUTPUT:
@@ -1256,7 +1318,7 @@ DESTROY (CFPlus::Map self)
 	CODE:
 {
         map_clear (self);
-        Safefree (self->face);
+        Safefree (self->face2tile);
         Safefree (self->tex);
         Safefree (self);
 }
@@ -1273,27 +1335,41 @@ clear (CFPlus::Map self)
         map_clear (self);
 
 void
-set_face (CFPlus::Map self, int face, int texid)
+set_tileid (CFPlus::Map self, int face, int tile)
 	CODE:
 {
-        while (self->faces <= face)
-          {
-            Append (mapface, self->face, self->faces, self->faces);
-            self->faces *= 2;
-          }
+	need_facenum (self, face); self->face2tile [face] = tile;
+        need_texid   (self, tile);
+}
 
-        self->face [face] = texid;
+void
+set_smooth (CFPlus::Map self, int face, int smooth, int level)
+	CODE:
+{
+  	tileid texid;
+        maptex *tex;
+
+        if (face < 0 || face >= self->faces)
+          return;
+
+        if (smooth < 0 || smooth >= self->faces)
+          return;
+
+  	texid = self->face2tile [face];
+
+        if (!texid)
+          return;
+
+        tex = self->tex + texid;
+        tex->smoothtile  = self->face2tile [smooth];
+        tex->smoothlevel = level;
 }
 
 void
 set_texture (CFPlus::Map self, int texid, int name, int w, int h, float s, float t, int r, int g, int b, int a)
 	CODE:
 {
-        while (self->texs <= texid)
-          {
-            Append (maptex, self->tex, self->texs, self->texs);
-            self->texs *= 2;
-          }
+	need_texid (self, texid);
 
         {
           maptex *tex = self->tex + texid;
@@ -1347,12 +1423,12 @@ scroll (CFPlus::Map self, int dx, int dy)
         if (dx > 0)
           map_blank (self, self->x, self->y, dx, self->h);
         else if (dx < 0)
-          map_blank (self, self->x + self->w + dx + 1, self->y, -dx, self->h);
+          map_blank (self, self->x + self->w + dx, self->y, -dx, self->h);
 
         if (dy > 0)
           map_blank (self, self->x, self->y, self->w, dy);
         else if (dy < 0)
-          map_blank (self, self->x, self->y + self->h + dy + 1, self->w, -dy);
+          map_blank (self, self->x, self->y + self->h + dy, self->w, -dy);
 
 	self->ox += dx; self->x += dx;
 	self->oy += dy; self->y += dy;
@@ -1416,8 +1492,8 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                               cell->stat_width = *data++ + 1;
                             else if (cmd == 0x47)
                               {
-                                if (*data == 8)
-                                  ; // decode player uuid
+                                if (*data == 4)
+                                  ; // decode player count
 
                                 data += *data + 1;
                               }
@@ -1436,17 +1512,23 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
 
                 if (flags & 4)
                   {
-                    cell->face [0] = self->face [(data [0] << 8) + data [1]]; data += 2;
+                    faceid face = (data [0] << 8) + data [1]; data += 2;
+                    need_facenum (self, face);
+                    cell->tile [0] = self->face2tile [face];
                   }
 
                 if (flags & 2)
                   {
-                    cell->face [1] = self->face [(data [0] << 8) + data [1]]; data += 2;
+                    faceid face = (data [0] << 8) + data [1]; data += 2;
+                    need_facenum (self, face);
+                    cell->tile [1] = self->face2tile [face];
                   }
 
                 if (flags & 1)
                   {
-                    cell->face [2] = self->face [(data [0] << 8) + data [1]]; data += 2;
+                    faceid face = (data [0] << 8) + data [1]; data += 2;
+                    need_facenum (self, face);
+                    cell->tile [2] = self->face2tile [face];
                   }
               }
             else
@@ -1486,19 +1568,14 @@ mapmap (CFPlus::Map self, int x0, int y0, int w, int h)
 
                     for (z = 0; z <= 0; z++)
                       {
-                        mapface face = cell->face [z];
+                        maptex tex = self->tex [cell->tile [z]];
+                        int a0 = 255 - tex.a;
+                        int a1 = tex.a;
 
-                        if (face)
-                          {
-                            maptex tex = self->tex [face];
-                            int a0 = 255 - tex.a;
-                            int a1 = tex.a;
-
-                            r = (r * a0 + tex.r * a1) / 255;
-                            g = (g * a0 + tex.g * a1) / 255;
-                            b = (b * a0 + tex.b * a1) / 255;
-                            a = (a * a0 + tex.a * a1) / 255;
-                          }
+                        r = (r * a0 + tex.r * a1) / 255;
+                        g = (g * a0 + tex.g * a1) / 255;
+                        b = (b * a0 + tex.b * a1) / 255;
+                        a = (a * a0 + tex.a * a1) / 255;
                       }
                   }
 
@@ -1515,12 +1592,22 @@ mapmap (CFPlus::Map self, int x0, int y0, int w, int h)
         RETVAL
 
 void
-draw (CFPlus::Map self, int mx, int my, int sw, int sh)
+draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
 	CODE:
 {
+  	HV *smooth = (HV *)sv_2mortal ((SV *)newHV ());
+        uint32_t smooth_level[256 / 32]; // one bit for every possible smooth level
+        static uint8_t smooth_max[256][256]; // egad, fats and wasteful on memory (64k)
+        smooth_key skey;
         int x, y, z;
         int last_name;
-        mapface face;
+
+        // thats current max. sorry.
+        if (sw > 255) sw = 255;
+        if (sh > 255) sh = 255;
+
+        // clear key, in case of extra padding
+        memset (&skey, 0, sizeof (skey));
 
         glColor4ub (255, 255, 255, 255);
 
@@ -1536,58 +1623,199 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh)
         mx += self->x;
         my += self->y;
 
-        for (z = 0; z < 3; z++)
-          for (y = 0; y < sh; y++)
-            if (0 <= y + my && y + my < self->rows)
-              {
-                maprow *row = self->row + (y + my);
+        // first pass: determine smooth_max
+        // rather ugly, if you ask me
+        // could also be stored inside mapcell and updated on change
+        memset (smooth_max, 0, sizeof (smooth_max));
 
-                for (x = 0; x < sw; x++)
-                  if (row->c0 <= x + mx && x + mx < row->c1)
-                    {
-                      mapcell *cell = row->col + (x + mx - row->c0);
+        for (y = 0; y < sh; y++)
+          if (0 <= y + my && y + my < self->rows)
+            {
+              maprow *row = self->row + (y + my);
 
-                      face = cell->face [z];
+              for (x = 0; x < sw; x++)
+                if (row->c0 <= x + mx && x + mx < row->c1)
+                  {
+                    mapcell *cell = row->col + (x + mx - row->c0);
 
-                      if (face && face < self->texs)
-                        {
-                          maptex tex = self->tex [face];
-                          int px = (x + 1) * 32 - tex.w;
-                          int py = (y + 1) * 32 - tex.h;
+                    smooth_max[x + 1][y + 1] =
+                      MAX (self->tex [cell->tile [0]].smoothlevel,
+                        MAX (self->tex [cell->tile [1]].smoothlevel,
+                          self->tex [cell->tile [2]].smoothlevel));
+                  }
+            }
 
-                          if (last_name != tex.name)
-                            {
-                              glEnd ();
-                              glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
-                              glBegin (GL_QUADS);
-                            }
+        for (z = 0; z <= 2; z++)
+          {
+            memset (smooth_level, 0, sizeof (smooth_level));
 
-                          glTexCoord2f (0    , 0    ); glVertex2f (px        , py        );
-                          glTexCoord2f (0    , tex.t); glVertex2f (px        , py + tex.h);
-                          glTexCoord2f (tex.s, tex.t); glVertex2f (px + tex.w, py + tex.h);
-                          glTexCoord2f (tex.s, 0    ); glVertex2f (px + tex.w, py        );
-                        }
+            for (y = 0; y < sh; y++)
+              if (0 <= y + my && y + my < self->rows)
+                {
+                  maprow *row = self->row + (y + my);
 
-                      if (cell->flags && z == 2)
-                        {
-                          if (cell->flags & 1)
-                            {
-                              maptex tex = self->tex [1];
-                              int px = (x + 1) * 32 - tex.w + 2;
-                              int py = (y + 1) * 32 - tex.h - 6;
+                  for (x = 0; x < sw; x++)
+                    if (row->c0 <= x + mx && x + mx < row->c1)
+                      {
+                        mapcell *cell = row->col + (x + mx - row->c0);
+                        tileid tile = cell->tile [z];
+                        
+                        if (tile)
+                          {
+                            maptex tex = self->tex [tile];
+                            int px = (x + 1) * T - tex.w;
+                            int py = (y + 1) * T - tex.h;
 
-                              glEnd ();
-                              glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
-                              glBegin (GL_QUADS);
+                            // suppressing texture state switches here
+                            // is only moderately effective, but worth the extra effort
+                            if (last_name != tex.name)
+                              {
+                                if (!tex.name)
+                                  tex = self->tex [2]; /* missing, replace by noface */
 
-                              glTexCoord2f (0    , 0    ); glVertex2f (px        , py        );
-                              glTexCoord2f (0    , tex.t); glVertex2f (px        , py + tex.h);
-                              glTexCoord2f (tex.s, tex.t); glVertex2f (px + tex.w, py + tex.h);
-                              glTexCoord2f (tex.s, 0    ); glVertex2f (px + tex.w, py        );
-                            }
-                        }
-                    }
+                                glEnd ();
+                                glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
+                                glBegin (GL_QUADS);
+                              }
+
+                            glTexCoord2f (0    , 0    ); glVertex2f (px        , py        );
+                            glTexCoord2f (0    , tex.t); glVertex2f (px        , py + tex.h);
+                            glTexCoord2f (tex.s, tex.t); glVertex2f (px + tex.w, py + tex.h);
+                            glTexCoord2f (tex.s, 0    ); glVertex2f (px + tex.w, py        );
+
+                            if (cell->flags && z == 2)
+                              {
+                                if (cell->flags & 1)
+                                  {
+                                    maptex tex = self->tex [1];
+                                    int px = x * T + T * 2 / 32;
+                                    int py = y * T - T * 6 / 32;
+
+                                    glEnd ();
+                                    glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
+                                    glBegin (GL_QUADS);
+
+                                    glTexCoord2f (0    , 0    ); glVertex2f (px    , py    );
+                                    glTexCoord2f (0    , tex.t); glVertex2f (px    , py + T);
+                                    glTexCoord2f (tex.s, tex.t); glVertex2f (px + T, py + T);
+                                    glTexCoord2f (tex.s, 0    ); glVertex2f (px + T, py    );
+                                  }
+                              }
+
+                            // update smooth hash
+                            if (tex.smoothtile)
+                              {
+                                skey.tile  = tex.smoothtile;
+                                skey.level = tex.smoothlevel;
+
+                                smooth_level [tex.smoothlevel >> 5] |= ((uint32_t)1) << (tex.smoothlevel & 31);
+
+                                // add bits to current tile and all neighbours. skey.x|y is
+                                // shifted +1|+1 so we always stay positive.
+
+                                // bits is ___n cccc CCCC bbbb
+                                // n  do not draw borders&corners
+                                // c  draw these corners, but...
+                                // C  ... not these
+                                // b  draw these borders
+
+                                // borders: 1 ┃·  2 ━━  4 ·┃  8 ··
+                                //            ┃·    ··    ·┃    ━━
+                                
+                                // corners: 1 ┛·  2 ·┗  4 ··  8 ··
+                                //            ··    ··    ·┏    ┓·
+
+                                // full tile
+                                skey.x = x + 1; skey.y = y + 1; smooth_or_bits (smooth, &skey, 0x1000);
+
+                                // borders
+                                skey.x = x + 2; skey.y = y + 1; smooth_or_bits (smooth, &skey, 0x0091);
+                                skey.x = x + 1; skey.y = y + 2; smooth_or_bits (smooth, &skey, 0x0032);
+                                skey.x = x    ; skey.y = y + 1; smooth_or_bits (smooth, &skey, 0x0064);
+                                skey.x = x + 1; skey.y = y    ; smooth_or_bits (smooth, &skey, 0x00c8);
+
+                                // corners
+                                skey.x = x + 2; skey.y = y + 2; smooth_or_bits (smooth, &skey, 0x0100);
+                                skey.x = x    ; skey.y = y + 2; smooth_or_bits (smooth, &skey, 0x0200);
+                                skey.x = x    ; skey.y = y    ; smooth_or_bits (smooth, &skey, 0x0400);
+                                skey.x = x + 2; skey.y = y    ; smooth_or_bits (smooth, &skey, 0x0800);
+                              }
+                          }
+                      }
               }
+
+            // go through all smoothlevels, lowest to highest, then draw.
+            // this is basically counting sort
+            {
+              int w, b;
+
+              for (w = 0; w < 256 / 32; ++w)
+                {
+                  uint32_t smask = smooth_level [w];
+                  if (smask)
+                    for (b = 0; b < 32; ++b)
+                      if (smask & (((uint32_t)1) << b))
+                        {
+                          int level = (w << 5) | b;
+                          HE *he;
+
+                          hv_iterinit (smooth);
+                          while ((he = hv_iternext (smooth)))
+                            {
+                              smooth_key *skey = (smooth_key *)HeKEY (he);
+                              IV bits = SvIVX (HeVAL (he));
+
+                              if (!(bits & 0x1000)
+                                  && skey->level == level
+                                  && level > smooth_max [skey->x][skey->y])
+                                {
+                                  maptex tex = self->tex [skey->tile];
+                                  int px = (((int)skey->x) - 1) * T;
+                                  int py = (((int)skey->y) - 1) * T;
+                                  int border = bits & 15;
+                                  int corner = (bits >> 8) & ~(bits >> 4) & 15;
+                                  float dx = tex.s * .0625f; // 16 images/row
+                                  float dy = tex.t * .5f   ; // 2 images/column
+
+                                  // this time naively avoiding texture state changes
+                                  // save gobs of state changes.
+                                  if (last_name != tex.name)
+                                    {
+                                      if (!tex.name)
+                                        continue; // smoothing not yet available
+
+                                      glEnd ();
+                                      glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
+                                      glBegin (GL_QUADS);
+                                    }
+
+                                  if (border)
+                                    {
+                                      float ox = border * dx;
+
+                                      glTexCoord2f (ox     , 0.f     ); glVertex2f (px    , py    );
+                                      glTexCoord2f (ox     , dy      ); glVertex2f (px    , py + T);
+                                      glTexCoord2f (ox + dx, dy      ); glVertex2f (px + T, py + T);
+                                      glTexCoord2f (ox + dx, 0.f     ); glVertex2f (px + T, py    );
+                                    }
+
+                                  if (corner)
+                                    {
+                                      float ox = corner * dx;
+
+                                      glTexCoord2f (ox     , dy      ); glVertex2f (px    , py    );
+                                      glTexCoord2f (ox     , dy * 2.f); glVertex2f (px    , py + T);
+                                      glTexCoord2f (ox + dx, dy * 2.f); glVertex2f (px + T, py + T);
+                                      glTexCoord2f (ox + dx, dy      ); glVertex2f (px + T, py    );
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
+
+            hv_clear (smooth);
+          }
 
 	glEnd ();
 
@@ -1605,13 +1833,13 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh)
                   {
                     mapcell *cell = row->col + (x + mx - row->c0);
 
-                    int px = x * 32;
-                    int py = y * 32;
+                    int px = x * T;
+                    int py = y * T;
 
                     if (cell->stat_hp)
                       {
-                        int width = cell->stat_width * 32;
-                        int thick = sh / 28 + 1 + cell->stat_width;
+                        int width = cell->stat_width * T;
+                        int thick = (sh * T / 32 + 27) / 28 + 1 + cell->stat_width;
 
                         glColor3ub (0,  0,  0);
                         glRectf (px + 1, py - thick - 2,
@@ -1760,28 +1988,31 @@ get_rect (CFPlus::Map self, int x0, int y0, int w, int h)
                     mapcell *cell = row->col + (x - row->c0);
                     uint8_t flags = 0;
 
-                    if (cell->face [0]) flags |= 1;
-                    if (cell->face [1]) flags |= 2;
-                    if (cell->face [2]) flags |= 4;
+                    if (cell->tile [0]) flags |= 1;
+                    if (cell->tile [1]) flags |= 2;
+                    if (cell->tile [2]) flags |= 4;
 
                     *data++ = flags;
 
                     if (flags & 1)
                       {
-                        *data++ = cell->face [0] >> 8;
-                        *data++ = cell->face [0];
+                        tileid tile = cell->tile [0];
+                        *data++ = tile >> 8;
+                        *data++ = tile;
                       }
 
                     if (flags & 2)
                       {
-                        *data++ = cell->face [1] >> 8;
-                        *data++ = cell->face [1];
+                        tileid tile = cell->tile [1];
+                        *data++ = tile >> 8;
+                        *data++ = tile;
                       }
 
                     if (flags & 4)
                       {
-                        *data++ = cell->face [2] >> 8;
-                        *data++ = cell->face [2];
+                        tileid tile = cell->tile [2];
+                        *data++ = tile >> 8;
+                        *data++ = tile;
                       }
                   }
                 else
@@ -1831,13 +2062,12 @@ set_rect (CFPlus::Map self, int x0, int y0, uint8_t *data)
 
                 if (flags)
                   {
-                    mapface face[3] = { 0, 0, 0 };
-
                     mapcell *cell = row_get_cell (row, x);
+                    tileid tile[3] = { 0, 0, 0 };
 
-                    if (flags & 1) { face[0] = *data++ << 8; face[0] |= *data++; }
-                    if (flags & 2) { face[1] = *data++ << 8; face[1] |= *data++; }
-                    if (flags & 4) { face[2] = *data++ << 8; face[2] |= *data++; }
+                    if (flags & 1) { tile[0] = *data++ << 8; tile[0] |= *data++; }
+                    if (flags & 2) { tile[1] = *data++ << 8; tile[1] |= *data++; }
+                    if (flags & 4) { tile[2] = *data++ << 8; tile[2] |= *data++; }
 
                     if (cell->darkness == 0)
                       {
@@ -1845,10 +2075,15 @@ set_rect (CFPlus::Map self, int x0, int y0, uint8_t *data)
 
                         for (z = 0; z <= 2; z++)
                           {
-                            cell->face[z] = face[z];
+                            tileid t = tile [z];
 
-                            if (face[z] && (face[z] >= self->texs || !self->tex[face [z]].name))
-                              XPUSHs (sv_2mortal (newSViv (face[z])));
+                            if (t >= self->texs || (t && !self->tex [t].name))
+                              {
+                                XPUSHs (sv_2mortal (newSViv (t)));
+                                need_texid (self, t);
+                              }
+
+                            cell->tile [z] = t;
                           }
                       }
                   }
@@ -2007,6 +2242,9 @@ BOOT:
     
   for (civ = const_iv + sizeof (const_iv) / sizeof (const_iv [0]); civ-- > const_iv; )
     newCONSTSUB (stash, (char *)civ->name, newSViv (civ->iv));
+
+  texture_av = newAV ();
+  AvREAL_off (texture_av);
 }
 
 char *
@@ -2165,21 +2403,14 @@ void glCopyPixels (int x, int y, int width, int height, int type = GL_COLOR)
 
 int glGenTexture ()
         CODE:
-{
-        GLuint name;
-        glGenTextures (1, &name);
-        RETVAL = name;
-}
+        RETVAL = gen_texture ();
 	OUTPUT:
         RETVAL
 
 void glDeleteTexture (int name)
 	CODE:
-{
-        GLuint name_ = name;
-        glDeleteTextures (1, &name_);
-}
-        
+        del_texture (name);
+
 int glGenList ()
 	CODE:
         RETVAL = glGenLists (1);

@@ -6,6 +6,7 @@ use strict;
 use Crossfire::Protocol::Constants;
 
 use CFPlus;
+use CFPlus::DB;
 use CFPlus::UI;
 use CFPlus::Pod;
 use CFPlus::Macro;
@@ -16,9 +17,15 @@ use Crossfire::Protocol::Base 0.95;
 use base 'Crossfire::Protocol::Base';
 
 sub new {
-   my $class = shift;
+   my ($class, %arg) = @_;
 
-   my $self = $class->SUPER::new (@_, setup_req => { extmap => 1 });
+   my $self = $class->SUPER::new (%arg,
+      setup_req => {
+         extmap => 1,
+         excmd  => 1,
+         %{$arg{setup_req} || {}},
+      },
+   );
 
    $self->{map_widget}->clr_commands;
 
@@ -39,14 +46,28 @@ sub new {
       map ["$cmd$_", $text],
          sort { (length $a) <=> (length $b) }
             @args
-  } sort { $a->{par} <=> $b->{par} }
-         CFPlus::Pod::find command => "*";
+   } sort { $a->{par} <=> $b->{par} }
+          CFPlus::Pod::find command => "*";
 
-  $self->{map_widget}->add_command (@$_)
-     for @cmd_help;
+   $self->connect_ext (event_capabilities => sub {
+      my ($cap) = @_;
 
-   $self->{noface} = new_from_file CFPlus::Texture
-      CFPlus::find_rcfile "noface.png", minify => 1, mipmap => 1;
+      if (my $ts = $cap->{tileset}) {
+         if (my ($default) = grep $_->[2] & 1, @$ts) {
+            $self->{tileset} = $default;
+            $self->{tilesize} = $default->[3];
+            $self->setup_req (tileset => $default->[0]);
+
+            my $w = int $self->{mapw} * 32 / $self->{tilesize};
+            my $h = int $self->{maph} * 32 / $self->{tilesize};
+
+            $self->setup_req (mapsize => "${w}x${h}");
+         }
+      }
+   });
+
+   $self->{map_widget}->add_command (@$_)
+      for @cmd_help;
 
    {
       $self->{dialogue} = my $tex = new_from_file CFPlus::Texture
@@ -54,17 +75,16 @@ sub new {
       $self->{map}->set_texture (1, @$tex{qw(name w h s t)}, @{$tex->{minified}});
    }
 
+   {
+     $self->{noface} = my $tex = new_from_file CFPlus::Texture
+        CFPlus::find_rcfile "noface.png", minify => 1, mipmap => 1;
+      $self->{map}->set_texture (2, @$tex{qw(name w h s t)}, @{$tex->{minified}});
+   }
+
    $self->{open_container} = 0;
 
-   # "global"
-   $self->{tilecache} = CFPlus::db_table "tilecache"
-      or die "tilecache: unable to open database table";
-   $self->{facemap}   = CFPlus::db_table "facemap"
-      or die "facemap: unable to open database table";
-
    # per server
-   $self->{mapcache}  = CFPlus::db_table "mapcache_$self->{host}_$self->{port}"
-      or die "mapcache_$self->{host}_$self->{port}: unable to open database table";
+   $self->{mapcache} = "mapcache_$self->{host}_$self->{port}";
 
    $self
 }
@@ -231,9 +251,7 @@ sub update_stats_window {
    $::GAUGES->{grace}   ->set_value ($gr, $gr_m);
    $::GAUGES->{exp}     ->set_text ("Exp: " . (::formsep ($stats->{+CS_STAT_EXP64}))
                                     . " (lvl " . ($stats->{+CS_STAT_LEVEL} * 1) . ")");
-   my $rng = $stats->{+CS_STAT_RANGE};
-   $rng =~ s/^Range: //;    # thank you so much dear server
-   $::GAUGES->{range}   ->set_text ("Rng: " . $rng);
+   $::GAUGES->{range}   ->set_text ($stats->{+CS_STAT_RANGE});
    my $title = $stats->{+CS_STAT_TITLE};
    $title =~ s/^Player: //;
    $::STATWIDS->{title} ->set_text ("Title: " . $title);
@@ -376,7 +394,7 @@ sub flush_map {
    my ($hash, $x, $y, $w, $h) = @$map_info;
 
    my $data = $self->{map}->get_rect ($x, $y, $w, $h);
-   $self->{mapcache}->put ($hash => Compress::LZF::compress $data);
+   CFPlus::DB::put $self->{mapcache} => $hash => Compress::LZF::compress $data, sub { };
    #warn sprintf "SAVEmap[%s] length %d\n", $hash, length $data;#d#
 }
 
@@ -390,20 +408,47 @@ sub map_clear {
    delete $self->{map_widget}{magicmap};
 }
 
+sub bg_fetch {
+   my ($self) = @_;
+
+   my $id;
+   
+   do {
+      $id = pop @{$self->{bg_fetch}}
+         or return;
+   } while $self->{texture}[$id];
+
+   CFPlus::DB::get tilecache => $id, sub {
+      my ($data) = @_;
+
+      return unless $self->{map}; # stop when destroyed
+
+      $self->set_texture ($id => $data)
+         if defined $data;
+
+      $self->bg_fetch;
+   };
+}
 
 sub load_map($$$) {
    my ($self, $hash, $x, $y) = @_;
 
-   if (defined (my $data = $self->{mapcache}->get ($hash))) {
-      $data = Compress::LZF::decompress $data;
-      #warn sprintf "LOADmap[%s,%d,%d] length %d\n", $hash, $x, $y, length $data;#d#
-      for my $id ($self->{map}->set_rect ($x, $y, $data)) {
-         my $data = $self->{tilecache}->get ($id)
-            or next;
+   my $gen = $self->{map_change_gen};
 
-         $self->set_texture ($id => $data);
+   CFPlus::DB::get $self->{mapcache} => $hash, sub {
+      return unless $gen == $self->{map_change_gen};
+
+      my ($data) = @_;
+
+      if (defined $data) {
+         $data = Compress::LZF::decompress $data;
+         #warn sprintf "LOADmap[%s,%d,%d] length %d\n", $hash, $x, $y, length $data;#d#
+
+         my $inprogress = @{ $self->{bg_fetch} || [] };
+         unshift @{ $self->{bg_fetch} }, $self->{map}->set_rect ($x, $y, $data);
+         $self->bg_fetch unless $inprogress;
       }
-   }
+   };
 }
 
 # hardcode /world/world_xxx_xxx map names, the savings are enourmous,
@@ -477,7 +522,10 @@ sub flood_fill {
             if $x >= $x0 && $x + $w < $x1 && $y >= $y0  && $y + $h < $y1;
 
       } else {
+         my $gen = $self->{map_change_gen};
          $self->send_mapinfo ("spatial $path$tile", sub {
+            return unless $gen == $self->{map_change_gen};
+
             my ($mode, $flags, $x, $y, $w, $h, $hash) = @_;
 
             return if $mode ne "spatial";
@@ -501,6 +549,8 @@ sub map_change {
    my ($self, $mode, $flags, $x, $y, $w, $h, $hash) = @_;
 
    $self->flush_map;
+
+   ++$self->{map_change_gen};
 
    my ($ox, $oy) = ($::MAP->ox, $::MAP->oy);
 
@@ -527,71 +577,44 @@ sub map_change {
 }
 
 sub face_find {
-   my ($self, $facenum, $face) = @_;
+   my ($self, $facenum, $face, $cb) = @_;
 
    my $hash = "$face->{chksum},$face->{name}";
 
-   my $id = $self->{facemap}->get ($hash);
+   my $id = CFPlus::DB::get_tile_id_sync $hash;
 
-   unless ($id) {
-      # create new id for face
-      # I love transactions
-      for (1..100) {
-         my $txn = $CFPlus::DB_ENV->txn_begin;
-         my $status = $self->{facemap}->db_get (id => $id);
-         if ($status == 0 || $status == BerkeleyDB::DB_NOTFOUND) {
-            $id = ($id || 64) + 1;
-            if ($self->{facemap}->put (id => $id) == 0
-                && $self->{facemap}->put ($hash => $id) == 0) {
-               $txn->txn_commit;
+   $face->{id}               = $id;
+   $self->{faceid}[$facenum] = $id;
 
-               goto gotid;
-            }
-         }
-         $txn->txn_abort;
-      }
+   $self->{map}->set_tileid ($facenum => $id);
 
-      CFPlus::fatal "maximum number of transaction retries reached - database problems?";
-   }
-
-gotid:
-   $face->{id} = $id;
-   $self->{map}->set_face ($facenum => $id);
-   $self->{faceid}[$facenum] = $id;#d#
-
-   my $face = $self->{tilecache}->get ($id);
-   
-   if ($face) {
-      #$self->face_prefetch;
-      $face
-   } else {
-      my $tex = $self->{noface};
-      $self->{map}->set_texture ($id, @$tex{qw(name w h s t)}, @{$tex->{minified}});
-      undef
-   };
+   CFPlus::DB::get tilecache => $id, $cb;
 }
 
 sub face_update {
    my ($self, $facenum, $face, $changed) = @_;
 
-   $self->{tilecache}->put ($face->{id} => $face->{image}) if $changed;
+   CFPlus::DB::put tilecache => $face->{id} => $face->{image}, sub { }
+      if $changed;
 
    $self->set_texture ($face->{id} => delete $face->{image});
+}
+
+sub smooth_update {
+   my ($self, $facenum, $face) = @_;
+
+   $self->{map}->set_smooth ($facenum, $face->{smoothface}, $face->{smoothlevel});
 }
 
 sub set_texture {
    my ($self, $id, $data) = @_;
 
-   $self->{texture}[$id] ||= do {
-      my $tex =
-         new_from_image CFPlus::Texture
-            $data, minify => 1, mipmap => 1;
+   $self->{texture}[$id] = my $tex =
+      new_from_image CFPlus::Texture
+         $data, minify => 1, mipmap => 1;
 
-      $self->{map}->set_texture ($id, @$tex{qw(name w h s t)}, @{$tex->{minified}});
-      $self->{map_widget}->update;
-
-      $tex
-   };
+   $self->{map}->set_texture ($id, @$tex{qw(name w h s t)}, @{$tex->{minified}});
+   $self->{map_widget}->update;
 }
 
 sub sound_play {
@@ -611,51 +634,66 @@ sub query {
    $self->{query}-> ($self, $flags, $prompt);
 }
 
-sub drawinfo {
-   my ($self, $color, $text) = @_;
+our %NAME_TO_COLOR = (
+   black	=>  0,
+   white	=>  1,
+   darkblue	=>  2,
+   red	        =>  3,
+   orange	=>  4,
+   lightblue	=>  5,
+   darkorange	=>  6,
+   green	=>  7,
+   darkgreen	=>  8,
+   grey         =>  9,
+   brown	=> 10,
+   yellow	=> 11,
+   tan          => 12,
+);
 
-   my @color = (
-      [1.00, 1.00, 1.00], #[0.00, 0.00, 0.00],
-      [1.00, 1.00, 1.00],
-      [0.50, 0.50, 1.00], #[0.00, 0.00, 0.55]
-      [1.00, 0.00, 0.00],
-      [1.00, 0.54, 0.00],
-      [0.11, 0.56, 1.00],
-      [0.93, 0.46, 0.00],
-      [0.18, 0.54, 0.34],
-      [0.56, 0.73, 0.56],
-      [0.80, 0.80, 0.80],
-      [0.75, 0.61, 0.20],
-      [0.99, 0.77, 0.26],
-      [0.74, 0.65, 0.41],
-   );
+our @CF_COLOR = (
+   [1.00, 1.00, 1.00], #[0.00, 0.00, 0.00],
+   [1.00, 1.00, 1.00],
+   [0.50, 0.50, 1.00], #[0.00, 0.00, 0.55]
+   [1.00, 0.00, 0.00],
+   [1.00, 0.54, 0.00],
+   [0.11, 0.56, 1.00],
+   [0.93, 0.46, 0.00],
+   [0.18, 0.54, 0.34],
+   [0.56, 0.73, 0.56],
+   [0.80, 0.80, 0.80],
+   [0.75, 0.61, 0.20],
+   [0.99, 0.77, 0.26],
+   [0.74, 0.65, 0.41],
+);
 
-   my $fg = $color[$color % @color];
+sub msg {
+   my ($self, $color, $type, $text, @extra) = @_;
 
-   $self->logprint ("info: ", $text);
+   if (my $cb = $self->{cb_msg}{$type}) {
+      $_->($self, $color, $type, $text, @extra) for values %$cb;
+   } elsif ($type =~ /^(?:chargen-race-title|chargen-race-description)$/) {
+      $type =~ s/-/_/g;
+      $self->{$type} = $text;
+   } else {
+      $self->logprint ("msg: ", $text);
+      return if $color < 0; # negative color == ignore if not understood
 
-   # try to create single paragraphs of multiple lines sent by the server
-   $text =~ s/(?<=\S)\n(?=\w)/ /g;
+      my $fg = $CF_COLOR[$color % @CF_COLOR];
 
-   $text = CFPlus::asxml $text;
-   $text =~ s/\[b\](.*?)\[\/b\]/<b>\1<\/b>/g;
-   $text =~ s/\[color=(.*?)\](.*?)\[\/color\]/<span foreground='\1'>\2<\/span>/g;
+      ## try to create single paragraphs of multiple lines sent by the server
+      # no longer neecssary with TRT servers
+      #$text =~ s/(?<=\S)\n(?=\w)/ /g;
 
-   ::message ({ fg => $fg, markup => $_ })
-      for split /\n/, $text;
+      ::message ({ fg => $fg, markup => $_ })
+         for split /\n/, $text;
 
-   $self->{statusbox}->add ($text,
-      group        => $text,
-      fg           => $fg,
-      timeout      => $color >= 2 ? 180 : 10,
-      tooltip_font => $::FONT_FIXED,
-   );
-}
-
-sub drawextinfo {
-   my ($self, $color, $type, $subtype, $message) = @_;
-
-   $self->drawinfo ($color, $message);
+      $self->{statusbox}->add ($text,
+         group        => $text,
+         fg           => $fg,
+         timeout      => $color >= 2 ? 180 : 10,
+         tooltip_font => $::FONT_FIXED,
+      );
+   }
 }
 
 sub spell_add {
@@ -681,6 +719,7 @@ sub spell_delete {
 sub setup {
    my ($self, $setup) = @_;
 
+   $self->{map_widget}->set_tilesize ($self->{tilesize});
    $::MAP->resize ($self->{mapw}, $self->{maph});
 }
 
@@ -897,8 +936,10 @@ sub update_server_info {
     . "protocol version <tt>$self->{version}</tt>\n"
     . "minimap support $yesno[$self->{setup}{mapinfocmd} > 0]\n"
     . "extended command support $yesno[$self->{setup}{extcmd} > 0]\n"
+    . "examine command support $yesno[$self->{setup}{excmd} > 0]\n"
     . "editing support $yesno[!!$self->{editor_support}]\n"
     . "map attributes $yesno[$self->{setup}{extmap} > 0]\n"
+    . "big image protocol support $yesno[$self->{setup}{fxix} > 0]\n"
     . "cfplus support $yesno[$self->{cfplus_ext} > 0]"
       . ($self->{cfplus_ext} > 0 ? ", version $self->{cfplus_ext}" : "") ."\n"
     . "map size $self->{mapw}×$self->{maph}\n"
@@ -930,6 +971,7 @@ sub logged_in {
 
    $self->send_command ("output-sync $::CFG->{output_sync}");
    $self->send_command ("output-count $::CFG->{output_count}");
+   $self->send_command ("output-rate $::CFG->{output_rate}") if $::CFG->{output_rate} > 0;
    $self->send_command ("pickup $::CFG->{pickup}");
 }
 

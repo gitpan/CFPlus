@@ -155,13 +155,14 @@ sub update_widgets {
       1
    };
 
-   my $tooltip_std = "<small>"
-                   . "Left click - examine item\n"
-                   . "Shift-Left click - " . ($self->{container} ? "move or drop" : "take") . " item\n"
-                   . "Middle click - apply\n"
-                   . "Shift-Middle click - lock/unlock\n"
-                   . "Right click - further options"
-                   . "</small>\n";
+   my $tooltip_std =
+      "<small>"
+      . "Left click - examine item\n"
+      . "Shift-Left click - " . ($self->{container} ? "move or drop" : "take") . " item\n"
+      . "Middle click - apply\n"
+      . "Shift-Middle click - lock/unlock\n"
+      . "Right click - further options"
+      . "</small>\n";
 
    my $bg = $self->{flags} & F_CURSED ? [1  , 0  , 0, 0.5]
           : $self->{flags} & F_MAGIC  ? [0.2, 0.2, 1, 0.5]
@@ -190,12 +191,28 @@ sub update_widgets {
       can_hover  => 1,
       ellipsise  => 2,
       align      => -1,
-      on_button_down => $button_cb,
+
+      on_button_down  => $button_cb,
+      on_tooltip_show => sub {
+         my ($widget) = @_;
+
+         $::CONN->ex ($self->{tag}, sub {
+            my ($long_desc) = @_;
+
+            $long_desc =~ s/\s+$//;
+
+            $self->{long_desc} = $long_desc;
+            $widget->set_tooltip ("<b>$long_desc</b>\n\n$tooltip_std");
+         });
+      },
    ;
+
    my $desc = CFPlus::Item::desc_string $self;
    $self->{desc_widget}{bg} = $bg;
    $self->{desc_widget}->set_text ($desc);
-   $self->{desc_widget}->set_tooltip ("<b>$desc</b>.\n$tooltip_std");
+
+   my $long_desc = $self->{long_desc} || $desc;
+   $self->{desc_widget}->set_tooltip ("<b>$long_desc</b>\n\n$tooltip_std");
 
    $self->{weight_widget} ||= new CFPlus::UI::Label
       can_events => 1,

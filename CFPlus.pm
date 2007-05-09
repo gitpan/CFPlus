@@ -17,7 +17,7 @@ package CFPlus;
 use Carp ();
 
 BEGIN {
-   $VERSION = '0.97';
+   $VERSION = '0.98';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
@@ -26,10 +26,10 @@ BEGIN {
 use utf8;
 
 use AnyEvent ();
-use BerkeleyDB;
 use Pod::POM ();
 use File::Path ();
 use Storable (); # finally
+use Fcntl ();
 
 BEGIN {
    use Crossfire::Protocol::Base ();
@@ -73,7 +73,7 @@ sub asxml($) {
 
 sub socketpipe() {
    socketpair my $fh1, my $fh2, Socket::AF_UNIX, Socket::SOCK_STREAM, Socket::PF_UNSPEC
-      or die "cannot establish bidiretcional pipe: $!\n";
+      or die "cannot establish bidirectional pipe: $!\n";
 
    ($fh1, $fh2)
 }
@@ -126,7 +126,7 @@ sub background(&;&) {
          $line =~ s/\s+$//;
          utf8::decode $line;
          if ($line =~ /^\x{e877}json_msg (.*)$/s) {
-            $cb->(from_json $1);
+            $cb->(JSON::XS->new->allow_nonref->decode ($1));
          } else {
             ::message ({
                markup => "background($pid): " . CFPlus::asxml $line,
@@ -139,37 +139,10 @@ sub background(&;&) {
 sub background_msg {
    my ($msg) = @_;
 
-   $msg = "\x{e877}json_msg " . to_json $msg;
+   $msg = "\x{e877}json_msg " . JSON::XS->new->allow_nonref->encode ($msg);
    $msg =~ s/\n//g;
    utf8::encode $msg;
    print $msg, "\n";
-}
-
-package CFPlus::Database;
-
-our @ISA = BerkeleyDB::Btree::;
-
-sub get($$) {
-   my $data;
-
-   $_[0]->db_get ($_[1], $data) == 0
-      ? $data
-      : ()
-}
-
-my %DB_SYNC;
-
-sub put($$$) {
-   my ($db, $key, $data) = @_;
-
-   my $hkey = $db + 0;
-   CFPlus::weaken $db;
-   $DB_SYNC{$hkey} ||= AnyEvent->timer (after => 30, cb => sub {
-      delete $DB_SYNC{$hkey};
-      $db->db_sync if $db;
-   });
-
-   $db->db_put ($key => $data)
 }
 
 package CFPlus;
@@ -256,52 +229,16 @@ sub lwp_check($) {
    $res
 }
 
-our $DB_ENV;
-our $DB_STATE;
+sub fh_nonblocking($$) {
+   my ($fh, $nb) = @_;
 
-sub db_table($) {
-   my ($table) = @_;
+   if ($^O eq "MSWin32") {
+      $nb = (! ! $nb) + 0;
+      ioctl $fh, 0x8004667e, \$nb; # FIONBIO
+   } else {
+      fcntl $fh, &Fcntl::F_SETFL, $nb ? &Fcntl::O_NONBLOCK : 0;
+   }
 
-   $table =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
-
-   new CFPlus::Database
-      -Env      => $DB_ENV,
-      -Filename => $table,
-#      -Filename => "database",
-#      -Subname  => $table,
-      -Property => DB_CHKSUM,
-      -Flags    => DB_CREATE | DB_UPGRADE,
-         or die "unable to create/open database table $_[0]: $BerkeleyDB::Error"
-}
-
-our $DB_HOME = "$Crossfire::VARDIR/cfplus";
-
-sub open_db {
-   use strict;
-
-   mkdir $DB_HOME, 0777;
-   my $recover = $BerkeleyDB::db_version >= 4.4 
-                 ? eval "DB_REGISTER | DB_RECOVER"
-                 : 0;
-
-   $DB_ENV = new BerkeleyDB::Env
-                    -Home => $DB_HOME,
-                    -Cachesize => 8_000_000,
-                    -ErrFile => "$DB_HOME/errorlog.txt",
-#                 -ErrPrefix => "DATABASE",
-                    -Verbose => 1,
-                    -Flags => DB_CREATE | DB_RECOVER | DB_INIT_MPOOL | DB_INIT_LOCK | DB_INIT_TXN | $recover,
-                    -SetFlags => DB_AUTO_COMMIT | DB_LOG_AUTOREMOVE,
-                       or die "unable to create/open database home $DB_HOME: $BerkeleyDB::Error";
-
-   $DB_STATE = db_table "state";
-
-   1
-}
-
-unless (eval { open_db }) {
-   File::Path::rmtree $DB_HOME;
-   open_db;
 }
 
 package CFPlus::Layout;

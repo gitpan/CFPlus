@@ -15,6 +15,7 @@ CFPlus.xs
 CFPlus/Protocol.pm
 CFPlus/Texture.pm
 CFPlus/OpenGL.pm
+CFPlus/DB.pm
 CFPlus/UI.pm
 CFPlus/UI/Inventory.pm
 CFPlus/UI/SpellList.pm

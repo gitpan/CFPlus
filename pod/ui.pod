@@ -213,11 +213,6 @@ or accept the stats as shown below and continue.
 
 =head2 X<chargen_race>Character Creation: Race
 
-Look at the B<Messages> window to see a description of this race and
-the center of the screen to see how this race looks like (I<below
-this dialog window: you may need to move the dialog away and click into
-the display area to make it visible>).
-
 You can look at another race, or accept this race (you will cycle back
 to this race eventually, so you can take your time making this important
 choice.

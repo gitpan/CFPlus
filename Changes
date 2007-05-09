@@ -1,5 +1,9 @@
 Revision history for Perl extension CFPlus
 
+0.98  Wed May  9 13:46:13 CEST 2007
+	- 64x64 faceset support.
+        - better message support.
+
 0.97  Thu Jan 25 06:16:08 CET 2007
 	- rewritten keybinding system.
         - many, many bugfixes.

@@ -24,9 +24,11 @@ our $TOOLTIP_WATCHER = Event->idle (min => 1/60, cb => sub {
       for (my $widget = $HOVER; $widget; $widget = $widget->{parent}) {
          if (length $widget->{tooltip}) {
             if ($TOOLTIP->{owner} != $widget) {
+               $TOOLTIP->{owner}->emit ("tooltip_hide") if $TOOLTIP->{owner};
                $TOOLTIP->hide;
 
                $TOOLTIP->{owner} = $widget;
+               $TOOLTIP->{owner}->emit ("tooltip_show") if $TOOLTIP->{owner};
 
                return if $ENV{CFPLUS_DEBUG} & 8;
 
@@ -44,6 +46,7 @@ our $TOOLTIP_WATCHER = Event->idle (min => 1/60, cb => sub {
    }
 
    $TOOLTIP->hide;
+   $TOOLTIP->{owner}->emit ("tooltip_hide") if $TOOLTIP->{owner};
    delete $TOOLTIP->{owner};
 });
 
@@ -1969,6 +1972,8 @@ sub invoke_key_down {
 
    my $text = $self->get_text;
 
+   $self->{cursor} = List::Util::max 0, List::Util::min $self->{cursor}, length $text;
+
    if ($uni == 8) {
       substr $text, --$self->{cursor}, 1, "" if $self->{cursor};
    } elsif ($uni == 127) {
@@ -2832,6 +2837,7 @@ sub new {
                  
       layout     => (new CFPlus::Layout),
       par        => [],
+      max_par    => 0,
       height     => 0,
       children   => [
          (new CFPlus::UI::Empty expand => 1),
@@ -2964,6 +2970,10 @@ sub add_paragraph {
 
       $self->add (@{ $para->{widget} }) if @{ $para->{widget} };
       push @{$self->{par}}, $para;
+   }
+
+   if (my $max = $self->{max_par}) {
+      shift @{$self->{par}} while @{$self->{par}} > $max;
    }
 
    $self->{need_reflow}++;

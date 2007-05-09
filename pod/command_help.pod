@@ -254,25 +254,6 @@ more than one unique item with that name, they are all picked up.
 If you are in a party (party join or party form), you will be able to message
 only your party. Even people standing right next to you can't hear it.
 
-=head2 golem
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-
-Golems are creatures that the player has some control over. Note that many
-summoned creatures are considered golems, even if they are not called
-golems.
-
-If you have a golem in control your spell type will be listed as golem,
-with the creature name in parantheses.
-
-To control your golem, just press the fire key in the direction you want
-your golem to move. Your golem will then start moving in that direction,
-and keep moving in that direction until you change its direction.
-
-Note that once you leave the map that the golem is on, the golem will
-disappear. Also, once you select another spell to cast, or change your
-range type, your golem will disappear.
-
 =head2 help
 
 Gives you online help for the command or help topic specified.
@@ -344,54 +325,23 @@ not be saved out of jail using invite.
 
 =head2 invoke
 
-The invoke command is used 
-to cast a spell immediately,
-or when it is necessary to give
-a parameter to the spell. Invoke
-will not set the range weapon.
+The invoke command is used to cast a spell immediately, or when it is
+necessary to give a parameter to the spell. Invoke will not set the range
+weapon.
 
 Examples:
-'invoke restoration
-'invoke magic rune of large fireball
-'invoke reincarnation of Iamdead
-'invoke create food of waybread
 
-It is very helpful to bind healing 
-spells to keys like this:
+   invoke restoration
+   invoke magic rune of large fireball
+   invoke reincarnation of Iamdead
+   invoke create food of waybread
 
-'bind invoke medium healing
-c
+It is very helpful to bind healing spells to keys, for example go to your
+I<playerbook>, tab I<spells>, the press the right mosue button on the
+spell I<medium healing> and choose C<bind invoke ... to a key>. It is
+recommended to bind a healing spell or potion to an easily-accessible-key,
+such as '1'.
 
-the c key now casts medium healing
-instantly
-
-=head2 keys
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-ERROR: its wrong anyways
-
-These are the basic movement
-keys:
-    yku
-    h l
-    bjn
-
-Running is done by holding
-control and move. Running
-is recommended.
-
-Firing the range weapon (help range)
-is done by holding shift and
-move. 
-
-'help mouse for help on what the
-mouse buttons do.
-
-'help melee for advice on how to
-fight
-
-'help traps for help with finding
-and disarming traps
 
 =head2 killpets
 
@@ -501,84 +451,9 @@ finds.
 
 Shows the message of the day. It takes no arguments.
 
-=head2 melee
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-
-You fight to kill monsters. You can either use magic or weapons.
-
-To use weapons, simply wield a weapon (and armour!) and move into the
-monster you want to attack.
-
-To use magic or bows, read 
-'help spells
-and
-'help range 
-and
-'help cast
-and
-'help invoke
-
-=head2 mode
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-
-The mode commands are as follows:
-
-Applymode, adjusts how items are applied
-Bowmode, adjusts the way bows work
-Peaceful, sets how you react to other players
-Petmode, adjusts how your pets behave
-
-=head2 mouse
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-
-The mouse isn't a great way to move your character. It'll work, but you'll
-be handicapped unless you use the keyboard for this. However, the mouse
-has the following inventory uses:
-
-Middle button on item:  apply
-or equip
-
-Right button:  drop or pickup
-item on ground
-
-Left button: info on item
-
-=head2 move
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-ERROR: same as "keys"?
-
-These are the basic movement
-keys:
-    yku
-    h l
-    bjn
-
-Running is done by holding
-control and move. Running
-is recommended.
-
-Firing the range weapon (help range)
-is done by holding shift and
-move. 
-
-'help mouse  for help on what the
-mouse buttons do.
-
-'help melee for advice on how to
-fight
-
-'help traps for help with finding
-and disarming traps
-
 =head2 output-count
 
-output-sync controls how often information is sent to the screen. Each
-buffer has its own time value, and will be flushed independantly. The
-default value is 16 ticks (about 2 seconds).
+   output-count [lines]
 
 output-count sets after how many messages of the same type, they are
 then printed out.  If the value was 10, then after killing ten orcs, the
@@ -586,13 +461,30 @@ message '10 times you kill orc' would be printed out. The default value is
 1 - this means that all messages get printed out as they are requested -
 buffering is disabled in this regard.
 
+output-sync controls how often information is sent to the screen. Each
+buffer has its own time value, and will be flushed independantly. The
+default value is usually less than a second.
+
 See also L<output-sync>.
+
+=head2 output-rate [bytes per second]
+
+Show the current setting of the output-rate, or set it to the provided
+value.  The server will try not to send (much) more than this many bytes
+per second to your client. If the rate is exceeded, the server tries to
+hold back less important information (such as new images), to increase
+responsiveness. The server-side default is usually quite high, around
+100000, so if you have a slow link and want to be able to control your
+character even when downloading faces, set this to a lower value, such as
+7000 (for ISDN).
 
 =head2 output-sync
 
+   output-sync [seconds]
+
 output-sync controls how often information is sent to the screen. Each
 buffer has its own time value, and will be flushed independantly. The
-default value is 16 ticks (about 2 seconds).
+default value is usually less than a second.
 
 output-count sets after how many messages of the same type, they are
 then printed out.  If the value was 10, then after killing ten orcs, the
@@ -974,23 +866,6 @@ your race is elf, you can use the title command to change your name from
 
 Dragons cannot set their title because it changes during the game.
 
-=head2 traps
-
-ERROR: not a command, but another help topic => move to a different file maybe?
-
-I recommend the following
-keybindings
-'bind search
-s
-'bind disarm
-d
-Then you can use the 's' and
-'d' keys for searching for and
-disarming traps. 
-
-Traps appear at random in doors and in chests. Search those before you
-open them up. Search by going near where you suspect a trap, and type 's'
-
 =head2 unignore
 
    unignore <login>
@@ -1060,6 +935,7 @@ somewhere in Brest.
 The wimpy level is the amount of health points (hp) that may be left before you
 automatically run away. This may be useful in hand-to-hand combats but should
 not be used when the opponent attacks with spells.
+
 
 =head1 Authors
 

@@ -23,6 +23,7 @@ sub new {
       z         => -1,
       can_focus => 1,
       list      => glGenList,
+      tilesize  => 32,
 
       smooth_matrix => [
          0.05, 0.13, 0.05,
@@ -39,6 +40,12 @@ sub new {
    ;
 
    $self
+}
+
+sub set_tilesize {
+   my ($self, $tilesize) = @_;
+
+   $self->{tilesize} = $tilesize;
 }
 
 sub add_command {
@@ -179,8 +186,8 @@ sub invoke_button_down {
       $self->grab_focus;
       return unless $::CONN;
 
-      my $x = $self->{dx} + CFPlus::floor +($ev->{x} - $self->{sx0}) / $self->{tilesize};
-      my $y = $self->{dy} + CFPlus::floor +($ev->{y} - $self->{sy0}) / $self->{tilesize};
+      my $x = $self->{dx} + CFPlus::floor +($ev->{x} - $self->{sx0}) / $self->{ctilesize};
+      my $y = $self->{dy} + CFPlus::floor +($ev->{y} - $self->{sy0}) / $self->{ctilesize};
 
       $x -= CFPlus::floor $::MAP->w * 0.5;
       $y -= CFPlus::floor $::MAP->h * 0.5;
@@ -287,9 +294,11 @@ sub invoke_mouse_motion {
 }
 
 sub size_request {
+   my ($self) = @_;
+
    (
-      32 * CFPlus::ceil $::WIDTH  / 32,
-      32 * CFPlus::ceil $::HEIGHT / 32,
+      $self->{tilesize} * CFPlus::ceil $::WIDTH  / $self->{tilesize},
+      $self->{tilesize} * CFPlus::ceil $::HEIGHT / $self->{tilesize},
    )
 }
 
@@ -301,6 +310,7 @@ sub update {
 }
 
 my %DIR = (
+   CFPlus::SDLK_KP5, [0, "stay fire"],
    CFPlus::SDLK_KP8, [1, "north"],
    CFPlus::SDLK_KP9, [2, "northeast"],
    CFPlus::SDLK_KP6, [3, "east"],
@@ -342,8 +352,6 @@ sub invoke_key_down {
    } elsif (!$::CONN) {
       return 0; # bindings further down need a valid connection
 
-   } elsif ($sym == CFPlus::SDLK_KP5 && !$mod) {
-      $::CONN->user_send ("stay fire");
    } elsif ($uni == ord ",") {
       $::CONN->user_send ("take");
    } elsif ($uni == ord " ") {
@@ -447,7 +455,7 @@ sub draw {
       unless $focused || !$::FAST;
 
    if (delete $self->{need_update}) {
-      my $tilesize = $self->{tilesize} = int 32 * $::CFG->{map_scale};
+      my $tilesize = $self->{ctilesize} = (int $self->{tilesize} * $::CFG->{map_scale}) || 1;
 
       my $sw = $self->{sw} = 1 + CFPlus::ceil $self->{w} / $tilesize;
       my $sh = $self->{sh} = 1 + CFPlus::ceil $self->{h} / $tilesize;
@@ -494,9 +502,9 @@ sub draw {
       glTranslate $sx0, $sy0;
       glScale $::CFG->{map_scale}, $::CFG->{map_scale};
 
-      $::MAP->draw ($dx, $dy, $sw, $sh);
+      $::MAP->draw ($dx, $dy, $sw, $sh, $self->{tilesize});
 
-      glScale 32, 32;
+      glScale $self->{tilesize}, $self->{tilesize};
 
       if (my $tex = $self->{fow_texture}) {
          glEnable GL_TEXTURE_2D;
@@ -550,6 +558,9 @@ sub DESTROY {
 
 package CFPlus::MapWidget::MapMap;
 
+use strict;
+use utf8;
+
 our @ISA = CFPlus::UI::Base::;
 
 use Time::HiRes qw(time);
@@ -581,11 +592,11 @@ sub _draw {
 
    my ($w, $h) = @$self{qw(w h)};
 
-   my $sw = int $::WIDTH  / (32 * $::CFG->{map_scale}) + 0.99;
-   my $sh = int $::HEIGHT / (32 * $::CFG->{map_scale}) + 0.99;
+   my $sw = int $::WIDTH  / ($::MAPWIDGET->{tilesize} * $::CFG->{map_scale}) + 0.99;
+   my $sh = int $::HEIGHT / ($::MAPWIDGET->{tilesize} * $::CFG->{map_scale}) + 0.99;
 
-   my $sx = int $::CFG->{map_shift_x} / 32;
-   my $sy = int $::CFG->{map_shift_y} / 32;
+   my $sx = int $::CFG->{map_shift_x} / $::MAPWIDGET->{tilesize};
+   my $sy = int $::CFG->{map_shift_y} / $::MAPWIDGET->{tilesize};
 
    my $ox = 0.5 * ($w - $sw);
    my $oy = 0.5 * ($h - $sh);

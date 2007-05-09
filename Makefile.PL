@@ -22,7 +22,8 @@ print <<EOF;
 *** HINT: Debian/Ubuntu users might have luck with:
 *** apt-get install perl libpango1.0-dev libglib2.0-dev libsdl1.2-dev
 *** apt-get install libevent-perl libsdl-mixer1.2-dev libsdl-image1.2-dev
-*** apt-get install libberkeleydb-perl anyevent-perl
+*** apt-get install libberkeleydb-perl
+*** apt-get install anyevent-perl
 
 EOF
 
@@ -54,7 +55,7 @@ WriteMakefile(
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
        BerkeleyDB    => 0.27,
-       Crossfire     => 0.95,
+       Crossfire     => 0.98,
        Time::HiRes   => 0,
        Event         => 1.07,
        AnyEvent      => 0,
@@ -70,6 +71,7 @@ WriteMakefile(
        'CFPlus/Protocol.pm'           => '$(INST_LIBDIR)/CFPlus/Protocol.pm',
        'CFPlus/OpenGL.pm'             => '$(INST_LIBDIR)/CFPlus/OpenGL.pm',
        'CFPlus/Texture.pm'            => '$(INST_LIBDIR)/CFPlus/Texture.pm',
+       'CFPlus/DB.pm'                 => '$(INST_LIBDIR)/CFPlus/DB.pm',
        'CFPlus/UI.pm'                 => '$(INST_LIBDIR)/CFPlus/UI.pm',
        'CFPlus/UI/Inventory.pm'       => '$(INST_LIBDIR)/CFPlus/UI/Inventory.pm',
        'CFPlus/UI/SpellList.pm'       => '$(INST_LIBDIR)/CFPlus/UI/SpellList.pm',

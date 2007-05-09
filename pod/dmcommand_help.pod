@@ -266,14 +266,12 @@ supplied. see also: free
 
 =head2 reset
 
-   reset <mapname> 
+   reset
 
-All other characters must be off of the map at the time of reset. This
-will NOT reset any unique items, such as players apartments, in the case
-of unique items being on a map, it will cause them to be saved before the
-map is reset.
-
-Using C<reset .> will reset the map that the player is currently on.
+Temporarily moves off all characters from the current map, then resets it.
+This will NOT reset any per-player maps, such as apartments, or remove
+unique items or items on unique floors. I.e. it works exactly as if the
+map reached its reset time prematurely.
 
 =head2 server_speed
 

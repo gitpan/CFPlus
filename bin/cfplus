@@ -31,17 +31,38 @@ BEGIN {
    if (%PAR::LibCache) {
       @INC = grep ref, @INC; # weed out all paths except pars loader refs
 
+      my $tmp = $ENV{PAR_TEMP};
+
       while (my ($filename, $zip) = each %PAR::LibCache) {
          for ($zip->memberNames) {
             next unless /^root\/(.*)/;
-            $zip->extractMember ($_, "$ENV{PAR_TEMP}/$1")
-               unless -e "$ENV{PAR_TEMP}/$1";
+            $zip->extractMember ($_, "$tmp/$1")
+               unless -e "$tmp/$1";
          }
       }
 
-      # TODO: pango-rc file, anybody?
+      if ($^O eq "MSWin32") {
+         # relocatable
+      } else {
+         # unix, need to patch pango rc file
+         open my $fh, "<:perlio", "$tmp/usr/lib/pango/1.5.0/module-files.d/libpango1.0-0.modules"
+            or die "$tmp/usr/lib/1.5.0/module-files.d/libpango1.0-0.modules: $!";
+         local $/;
+         my $rc = <$fh>;
+         $rc =~ s/^\//$tmp\//gm; # replace abs paths by relative ones
 
-      unshift @INC, $ENV{PAR_TEMP};
+         mkdir "$tmp/pango-modules";
+         open my $fh, ">:perlio", "$tmp/pango-modules/pango.modules"
+            or die "$tmp/pango-modules/pango.modules: $!";
+         print $fh $rc;
+
+         $ENV{PANGO_RC_FILE} = "$tmp/pango.rc";
+         open my $fh, ">:perlio", $ENV{PANGO_RC_FILE}
+            or die "$ENV{PANGO_RC_FILE}: $!";
+         print $fh "[Pango]\nModuleFiles = $tmp/pango-modules\n";
+      }
+
+      unshift @INC, $tmp;
    }
 }
 
@@ -60,6 +81,7 @@ use Compress::LZF;
 use CFPlus;
 use CFPlus::OpenGL ();
 use CFPlus::Protocol;
+use CFPlus::DB;
 use CFPlus::UI;
 use CFPlus::UI::Inventory;
 use CFPlus::UI::SpellList;
@@ -208,7 +230,7 @@ sub server_query {
    ;
 
    my @dialog = my $label = new CFPlus::UI::Label
-      max_w     => $::WIDTH * 0.4,
+      max_w     => $::WIDTH * 0.8,
       ellipsise => 0,
       text      => $prompt;
 
@@ -235,13 +257,11 @@ sub server_query {
       $dialog->grab_focus;
 
    } elsif ($flags & CS_QUERY_SINGLECHAR) {
-      $dialog->{tooltip} = "#charcreation_focus";
-
       if ($prompt =~ /Now choose a character|Press any key for the next race/i) {
-         $MESSAGE_WINDOW->show;
+         $dialog->{tooltip} = "#charcreation_focus";
 
          unshift @dialog, new CFPlus::UI::Label
-            max_w     => $::WIDTH * 0.4,
+            max_w     => $::WIDTH * 0.8,
             ellipsise => 0,
             markup    => "\nOr use your keyboard and the text entry below:\n";
 
@@ -263,6 +283,29 @@ sub server_query {
                 0
              },
          );
+
+         if ($conn->{chargen_race_description}) {
+            unshift @dialog, new CFPlus::UI::Label
+               max_w     => $::WIDTH * 0.8,
+               ellipsise => 0,
+               markup    => "<span foreground='#ccccff'>$conn->{chargen_race_description}</span>",
+            ;
+         }
+
+         unshift @dialog, new CFPlus::UI::Face
+            face  => $conn->{player}{face},
+            bg    => [.2, .2, .2, 1],
+            min_w => 64,
+            min_h => 64,
+         ;
+
+         if ($conn->{chargen_race_title}) {
+            unshift @dialog, new CFPlus::UI::Label
+               allign => 1,
+               ellipsise => 0,
+               markup    => "<span foreground='#ccccff' size='large'>Race: $conn->{chargen_race_title}</span>",
+            ;
+         }
 
          unshift @dialog, new CFPlus::UI::Label
             max_w     => $::WIDTH * 0.4,
@@ -421,6 +464,10 @@ sub start_game {
          mapmap     => $MAPMAP,
          query      => \&server_query,
 
+         setup_req  => {
+            smoothing => $CFG->{map_smoothing}*1,
+         },
+
          sound_play => sub {
             my ($x, $y, $soundnum, $type) = @_;
 
@@ -467,8 +514,15 @@ sub graphics_setup {
 
    $vbox->add (my $table = new CFPlus::UI::Table expand => 1, col_expand => [0, 1]);
 
-   $table->add (0, 0, new CFPlus::UI::Label valign => 0, align => 1, text => "Video Mode");
-   $table->add (1, 0, my $hbox = new CFPlus::UI::HBox);
+   my $row = 0;
+
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "OpenGL Info");
+   $table->add (1, $row++, new CFPlus::UI::Label valign => 0, fontsize => 0.8, text => CFPlus::OpenGL::gl_vendor . ", " . CFPlus::OpenGL::gl_version,
+                                                 can_events => 1,
+                                                 tooltip => "<tt><span size='8192'>" . (CFPlus::OpenGL::gl_extensions) . "</span></tt>");
+
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Video Mode");
+   $table->add (1, $row++, my $hbox = new CFPlus::UI::HBox);
 
    $hbox->add (my $mode_slider = new CFPlus::UI::Slider force_w => $WIDTH * 0.1, expand => 1, range => [$CFG->{sdl_mode}, 0, $#SDL_MODES, 0, 1]);
    $hbox->add (my $mode_label = new CFPlus::UI::Label align => 0, valign => 0, height => 0.8, template => "9999x9999");
@@ -480,8 +534,6 @@ sub graphics_setup {
       $mode_label->set_text (sprintf "%dx%d", @{$SDL_MODES[$value]});
    });
    $mode_slider->emit (changed => $mode_slider->{range}[0]);
-
-   my $row = 1;
 
    $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Fullscreen");
    $table->add (1, $row++, $FULLSCREEN_ENABLE = new CFPlus::UI::CheckBox
@@ -497,11 +549,37 @@ sub graphics_setup {
       on_changed => sub { my ($self, $value) = @_; $CFG->{fast} = $value; 0 }
    );
 
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "GUI Fontsize");
+   $table->add (1, $row++, new CFPlus::UI::Slider
+      range => [$CFG->{gui_fontsize}, 0.5, 2, 0, 0.1],
+      tooltip => "The base font size used by most GUI elements that do not have their own setting.",
+      on_changed => sub { $CFG->{gui_fontsize} = $_[1]; 0 },
+   );
+
+   $table->add (1, $row++, new CFPlus::UI::Button
+      expand => 1, align => 0, text => "Apply",
+      tooltip => "Apply the video settings above.",
+      on_activate => sub {
+         video_shutdown ();
+         video_init ();
+         0
+      }
+   );
+
    $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Map Scale");
    $table->add (1, $row++, new CFPlus::UI::Slider
       range      => [(log $CFG->{map_scale}) / (log 2), -3, 1, 0, 1],
       tooltip    => "Enlarge or shrink the displayed map. Changes are instant.",
       on_changed => sub { my ($self, $value) = @_; $CFG->{map_scale} = 2 ** $value; 0 }
+   );
+
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Smoothing");
+   $table->add (1, $row++, new CFPlus::UI::CheckBox
+      state => $CFG->{map_smoothing},
+      tooltip => "<b>Map Smoothing</b> tries to make tile borders less square. "
+               . "This increases load on the graphics subsystem and works only with 2.x servers. "
+               . "Changes take effect at next connection only.",
+      on_changed => sub { my ($self, $value) = @_; $CFG->{map_smoothing} = $value; 0 }
    );
 
    $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Fog of War");
@@ -530,13 +608,6 @@ sub graphics_setup {
       }
    );
 
-   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "GUI Fontsize");
-   $table->add (1, $row++, new CFPlus::UI::Slider
-      range => [$CFG->{gui_fontsize}, 0.5, 2, 0, 0.1],
-      tooltip => "The base font size used by most GUI elements that do not have their own setting.",
-      on_changed => sub { $CFG->{gui_fontsize} = $_[1]; 0 },
-   );
-
    $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Message Fontsize");
    $table->add (1, $row++, new CFPlus::UI::Slider
       range => [$CFG->{log_fontsize}, 0.5, 2, 0, 0.1],
@@ -562,16 +633,6 @@ sub graphics_setup {
       on_changed => sub {
          $CFG->{gauge_size} = $_[1];
          $GAUGES->{win}->set_size ($WIDTH, int $HEIGHT * $CFG->{gauge_size});
-         0
-      }
-   );
-
-   $table->add (1, $row++, new CFPlus::UI::Button
-      expand => 1, align => 0, text => "Apply",
-      tooltip => "Apply the video settings",
-      on_activate => sub {
-         video_shutdown ();
-         video_init ();
          0
       }
    );
@@ -907,15 +968,9 @@ sub update_metaserver {
          my @align = qw(1 0 1 1 -1);
 
          my $y = 0;
-         for my $m (
-            sort {
-               $b->{version} <=> $a->{version}
-                  or $b->{users} <=> $a->{users}
-            }
-            @{ $msg->{servers} }
-         ) {
-            my ($ip, $last, $host, $users, $version, $desc, $ibytes, $obytes, $uptime) = 
-               @$m{qw(ip age hostname users version description ibytes obytes uptime)};
+         for my $m (@{ $msg->{servers} }) {
+            my ($ip, $last, $host, $users, $version, $desc, $ibytes, $obytes, $uptime, $highlight) = 
+               @$m{qw(ip age hostname users version description ibytes obytes uptime highlight)};
 
             for ($desc) {
                s/<br>/\n/gi;
@@ -955,7 +1010,7 @@ sub update_metaserver {
                   align      => $align[$_],
                   text       => $m->[$_],
                   tooltip    => $tip[$_],
-                  fg         => ($m->[3] =~ /\+$/ ? [1, 1, 1] : [.7, .7, .7]),
+                  fg         => ($highlight ? [1, 1, 1] : [.7, .7, .7]),
                   can_hover  => 1,
                   can_events => 1,
                   fontsize   => 0.8)
@@ -1066,21 +1121,30 @@ sub server_setup {
       on_changed => sub { $CFG->{face_prefetch} = $_[1]; 0 },
    );
 
-   $table->add (0, 9, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Count");
+   $table->add (0, 9, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Rate");
    $table->add (1, 9, new CFPlus::UI::Entry
+      text => $CFG->{output_rate},
+      tooltip => "The approximate bandwidth in bytes per second that the server should not exceed "
+               . "when sending images, to ensure interactiveness. When 0 or unset, the server "
+               . "default will be used, which is usually around 100kb/s.",
+      on_changed => sub { $CFG->{output_rate} = $_[1]; 0 },
+   );
+
+   $table->add (0, 10, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Count");
+   $table->add (1, 10, new CFPlus::UI::Entry
       text => $CFG->{output_count},
       tooltip => "Should be set to 1 unless you know what you are doing. This option is only used once at log-in.",
       on_changed => sub { $CFG->{output_count} = $_[1]; 0 },
    );
 
-   $table->add (0, 10, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Sync");
-   $table->add (1, 10, new CFPlus::UI::Entry
+   $table->add (0, 11, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Sync");
+   $table->add (1, 11, new CFPlus::UI::Entry
       text => $CFG->{output_sync},
       tooltip => "Should be set to 1 unless you know what you are doing. This option is only used once at log-in.",
       on_changed => sub { $CFG->{output_sync} = $_[1]; 0 },
    );
 
-   $table->add (1, 11, $LOGIN_BUTTON = new CFPlus::UI::Button
+   $table->add (1, 12, $LOGIN_BUTTON = new CFPlus::UI::Button
       expand => 1,
       align => 0,
       text => "Login",
@@ -1091,12 +1155,25 @@ sub server_setup {
       },
    );
 
-   $table->add (0, 12, new CFPlus::UI::Label valign => 0, align => 1, text => "Chat Command");
-   $table->add (1, 12, my $saycmd = new CFPlus::UI::Entry
+   $vbox->add (new CFPlus::UI::FancyFrame
+      label => "Server Info",
+      child => ($SERVER_INFO = new CFPlus::UI::Label ellipsise => 0),
+   );
+
+   $vbox
+}
+
+sub client_setup {
+   my $table = new CFPlus::UI::Table expand => 1, col_expand => [0, 1];
+
+   my $row = 0;
+
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Chat Command");
+   $table->add (1, $row++, my $saycmd = new CFPlus::UI::Entry
       text    => $CFG->{say_command},
       tooltip => "This is the command that will be used if you write a line in the message window entry or press <b>\"</b> in the map window. "
-                . "Usually you want to enter something like 'say' or 'shout' or 'gsay' here. "
-                . "But you could also set it to <b>tell <i>playername</i></b> to only chat with that user.",
+               . "Usually you want to enter something like 'say' or 'shout' or 'gsay' here. "
+               . "But you could also set it to <b>tell <i>playername</i></b> to only chat with that user.",
       on_changed => sub {
          my ($self, $value) = @_;
          $CFG->{say_command} = $value;
@@ -1104,8 +1181,8 @@ sub server_setup {
       }
    );
 
-   $table->add (0, 13, new CFPlus::UI::Label valign => 0, align => 1, text => "Tip of the day");
-   $table->add (1, 13, my $saycmd = new CFPlus::UI::CheckBox
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Tip of the day");
+   $table->add (1, $row++, new CFPlus::UI::CheckBox
       state   => $CFG->{show_tips},
       tooltip => "Show the <b>Tip of the day</b> window at startup?",
       on_changed => sub {
@@ -1115,12 +1192,20 @@ sub server_setup {
       }
    );
 
-   $vbox->add (new CFPlus::UI::FancyFrame
-      label => "Server Info",
-      child => ($SERVER_INFO = new CFPlus::UI::Label ellipsise => 0),
+   $table->add (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Messages Window Size");
+   $table->add (1, $row++, my $saycmd = new CFPlus::UI::Entry
+      text    => $CFG->{logview_max_par},
+      tooltip => "This is maximum number of messages remembered in the <b>Messages</b> window. If the server "
+               . "sends more messages than this number, older messages get removed to save memory and "
+               . "computing time. A value of <b>0</b> disables this feature, but that is not recommended.",
+      on_changed => sub {
+         my ($self, $value) = @_;
+         $LOGVIEW->{max_par} = $CFG->{logview_max_par} = $value*1;
+         0
+      },
    );
 
-   $vbox
+   $table
 }
 
 sub message_window {
@@ -1567,52 +1652,54 @@ sub show_tip_of_the_day {
    # find all tips
    my @tod = CFPlus::Pod::find tip_of_the_day => "*";
 
-   my $todindex = $CFPlus::DB_STATE->get ("tip_of_the_day");
-   $todindex = 0 if $todindex >= @tod;
-   $CFPlus::DB_STATE->put (tip_of_the_day => $todindex + 1);
+   CFPlus::DB::get state => "tip_of_the_day", sub {
+      my ($todindex) = @_;
+      $todindex = 0 if $todindex >= @tod;
+      CFPlus::DB::put state => tip_of_the_day => $todindex + 1, sub { };
 
-   # create dialog
-   my $dialog;
+      # create dialog
+      my $dialog;
 
-   my $close = sub {
-      $dialog->destroy;
+      my $close = sub {
+         $dialog->destroy;
+      };
+
+      $dialog = new CFPlus::UI::Toplevel
+         x => "center",
+         y => "center",
+         z => 3,
+         name    => 'tip_of_the_day',
+         force_w => int $WIDTH  * 4/9,
+         force_h => int $WIDTH  * 2/9,
+         title   => "Tip of the day #" . (1 + $todindex),
+         child   => my $vbox = new CFPlus::UI::VBox,
+         has_close_button => 1,
+         on_delete => $close,
+      ;
+
+      $vbox->add (my $viewer  = new CFPlus::UI::TextScroller
+                      expand => 1, fontsize => 0.8, padding_x => 4, padding_y => 4);
+      $viewer->add_paragraph (CFPlus::Pod::as_paragraphs CFPlus::Pod::section_of $tod[$todindex]);
+
+      $vbox->add (my $table = new CFPlus::UI::Table col_expand => [0, 1]);
+
+      $table->add (0, 0, new CFPlus::UI::Button
+         text    => "Close",
+         tooltip => "Close the tip of the day window. To never see it again, disable the tip of the day in the <b>Server Setup</b>.",
+         on_activate => $close,
+      );
+
+      $table->add (2, 0, new CFPlus::UI::Button
+         text    => "Next",
+         tooltip => "Show the next <b>Tip of the day</b>.",
+         on_activate => sub {
+            $close->();
+            &show_tip_of_the_day;
+         },
+      );
+
+      $dialog->show;
    };
-
-   $dialog = new CFPlus::UI::Toplevel
-      x => "center",
-      y => "center",
-      z => 3,
-      name    => 'tip_of_the_day',
-      force_w => int $WIDTH  * 4/9,
-      force_h => int $WIDTH  * 2/9,
-      title   => "Tip of the day #" . (1 + $todindex),
-      child   => my $vbox = new CFPlus::UI::VBox,
-      has_close_button => 1,
-      on_delete => $close,
-   ;
-
-   $vbox->add (my $viewer  = new CFPlus::UI::TextScroller
-                   expand => 1, fontsize => 0.8, padding_x => 4, padding_y => 4);
-   $viewer->add_paragraph (CFPlus::Pod::as_paragraphs CFPlus::Pod::section_of $tod[$todindex]);
-
-   $vbox->add (my $table = new CFPlus::UI::Table col_expand => [0, 1]);
-
-   $table->add (0, 0, new CFPlus::UI::Button
-      text    => "Close",
-      tooltip => "Close the tip of the day window. To never see it again, disable the tip of the day in the <b>Server Setup</b>.",
-      on_activate => $close,
-   );
-
-   $table->add (2, 0, new CFPlus::UI::Button
-      text    => "Next",
-      tooltip => "Show the next <b>Tip of the day</b>.",
-      on_activate => sub {
-         $close->();
-         &show_tip_of_the_day;
-      },
-   );
-
-   $dialog->show;
 }
 
 sub sdl_init {
@@ -1702,7 +1789,8 @@ sub video_init {
          indent     => -4,
          can_hover  => 1,
          can_events => 1,
-         tooltip    => "<b>Server Log</b>. This text viewer contains all the messages sent by the server.",
+         max_par    => $CFG->{logview_max_par},
+         tooltip    => "<b>Server Log</b>. This text viewer contains all recent messages sent by the server.",
       ;
 
       $SETUP_DIALOG = new CFPlus::UI::Toplevel
@@ -1723,6 +1811,8 @@ sub video_init {
 
       $SETUP_NOTEBOOK->add (Server   => $SETUP_SERVER = server_setup,
          "Configure the server to play on, your username, password and other server-related options.");
+      $SETUP_NOTEBOOK->add (Client   => client_setup,
+         "Configure various client-specific settings.");
       $SETUP_NOTEBOOK->add (Pickup   => autopickup_setup,
          "Configure autopickup settings, i.e. which items you will pick up automatically when walking (or running) over them.");
       $SETUP_NOTEBOOK->add (Graphics => graphics_setup,
@@ -2033,7 +2123,7 @@ Event->timer (after => 1, interval => 0.25, cb => sub {
 
 %SDL_CB = (
    CFPlus::SDL_QUIT => sub {
-      Event::unloop -1;
+      exit;
    },
    CFPlus::SDL_VIDEORESIZE => sub {
    },
@@ -2076,35 +2166,40 @@ $SIG{INT} = $SIG{TERM} = sub { exit };
 
 {
    CFPlus::read_cfg "$Crossfire::VARDIR/cfplusrc";
+   CFPlus::DB::Server::run;
+
    CFPlus::UI::set_layout ($::CFG->{layout});
 
    my %DEF_CFG = (
-      sdl_mode       => 0,
-      width          => 640,
-      height         => 480,
-      fullscreen     => 0,
-      fast           => 0,
-      map_scale      => 1,
-      fow_enable     => 1,
-      fow_intensity  => 0.45,
-      fow_smooth     => 0,
-      gui_fontsize   => 1,
-      log_fontsize   => 0.7,
-      gauge_fontsize => 1,
-      gauge_size     => 0.35,
-      stat_fontsize  => 0.7,
-      mapsize        => 100,
-      say_command    => 'chat',
-      audio_enable   => 1,
-      bgm_enable     => 1,
-      bgm_volume     => 0.25,
-      face_prefetch  => 0,
-      output_sync    => 1,
-      output_count   => 1,
-      pickup         => 0,
-      inv_sort       => "mtime",
-      default        => "profile", # default profile
-      show_tips      => 1,
+      sdl_mode        => 0,
+      width           => 640,
+      height          => 480,
+      fullscreen      => 0,
+      fast            => 0,
+      map_scale       => 1,
+      fow_enable      => 1,
+      fow_intensity   => 0.45,
+      fow_smooth      => 0,
+      map_smoothing   => 1,
+      gui_fontsize    => 1,
+      log_fontsize    => 0.7,
+      gauge_fontsize  => 1,
+      gauge_size      => 0.35,
+      stat_fontsize   => 0.7,
+      mapsize         => 100,
+      say_command     => 'chat',
+      audio_enable    => 1,
+      bgm_enable      => 1,
+      bgm_volume      => 0.25,
+      face_prefetch   => 0,
+      output_sync     => 1,
+      output_count    => 1,
+      output_rate     => "",
+      pickup          => 0,
+      inv_sort        => "mtime",
+      default         => "profile", # default profile
+      show_tips       => 1,
+      logview_max_par => 1000,
    );
    
    while (my ($k, $v) = each %DEF_CFG) {
@@ -2183,7 +2278,10 @@ Event::loop;
 #CFPlus::SDL_Quit;
 #CFPlus::_exit 0;
 
-END { CFPlus::SDL_Quit }
+END {
+   CFPlus::SDL_Quit;
+   CFPlus::DB::Server::stop;
+}
 
 =head1 NAME
 
