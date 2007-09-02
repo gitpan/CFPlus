@@ -52,12 +52,14 @@ typedef void (*PangoOpenGLSubstituteFunc) (FcPattern *pattern, gpointer data);
 
 void
 pango_opengl_render_layout_subpixel (PangoLayout *layout,
+                                     rc_t *rc,
                                      int x, int y,
                                      float r, float g, float b, float a,
                                      int flags);
 
 void
 pango_opengl_render_layout (PangoLayout *layout,
+                            rc_t *rc,
                             int x, int y,
                             float r, float g, float b, float a,
                             int flags);

@@ -1,7 +1,31 @@
 uint8_t *		T_PV
 uint32_t *		T_PV
+
+GLenum			T_IV
+GLsize			T_UV
+GLsizei			T_IV
+GLint			T_IV
+GLfloat			T_NV
+GLdouble		T_NV
+
+CFPlus::Channel		T_IVOBJ
+CFPlus::RW		T_PTROBJ
 CFPlus::MixChunk	T_PTROBJ
 CFPlus::MixMusic	T_PTROBJ
 CFPlus::Font		T_PTROBJ
-CFPlus::Layout	T_PTROBJ
+CFPlus::Layout		T_PTROBJ
 CFPlus::Map		T_PTROBJ
+
+INPUT
+
+T_IVOBJ
+        if (sv_derived_from($arg, \"${ntype}\"))
+          $var = SvIV (SvRV ($arg));
+        else
+          croak (\"$var is not of type ${ntype}\")
+
+OUTPUT
+
+T_IVOBJ
+        sv_setref_iv ($arg, \"${ntype}\", $var);
+

@@ -1,12 +1,12 @@
 NAME
-    cfplus - A Crossfire+ and Crossfire game client
+    cfplus - A Crossfire TRT and Crossfire game client
 
 SYNOPSIS
     Just run it - no commandline arguments are supported.
 
 USAGE
     cfplus utilises OpenGL for all UI elements and the game. It is supposed
-    to be used fullscreen and interactively.
+    to be used in fullscreen mode and interactively.
 
 DEBUGGING
     CFPLUS_DEBUG - environment variable

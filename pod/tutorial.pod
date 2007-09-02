@@ -1,8 +1,8 @@
 =for image banner.png
 
-=head1 CFPlus Tutorial - An introduction to Crossfire+ and Crossfire game client.
+=head1 CFPlus Tutorial - An gentle introduction to the game client.
 
-=head2 What's Crossfire+ - Basic Game Concepts
+=head2 What's Crossfire TRT - Basic Game Concepts
 
 In the words of Frank Tore Johansen, the author of the original Crossfire
 game:
@@ -18,8 +18,9 @@ encompass hundreds of monsters, thousands of maps to explore, an elaborate
 magic system, over 15 character types, a system of skills, and many, many
 artifacts and treasures.
 
-Crossfire+ is freely distributed under the General Public License (GPL)
-and the code may be obtained from L<http://crossfire.schmorp.de/>.
+Crossfire TRT is freely distributed under the General (Affero)
+Public License (GPL) and the code may be obtained from
+L<http://crossfire.schmorp.de/>.
 
 =head1 Getting Started
 
@@ -36,7 +37,7 @@ wish to read the full manual.
 
 When starting the client you will see a window in the middle of the screen:
 
-=for image sc_login.png
+=for image sc_login.jpg
 
 There are several settings there:
 
@@ -51,7 +52,7 @@ the hostname.
 Below the entry there is a button I<Server List>. If you click on it you
 will get a server list:
 
-=for image sc_login_srvlist.png
+=for image sc_login_srvlist.jpg
 
 You can choose from the aviable servers there.
 (B<Note:> At the time of this writing (2006-07-23) only I<cf.schmorp.de> supports
@@ -177,7 +178,7 @@ instructions.
 
 If you see NPC's there, click on them and you will enter the NPC dialouge:
 
-=for image sc_newbiew_npc_dialog.png
+=for image sc_newbiew_npc_dialog.jpg
 
 The buttons on the right are options of what you can say to the NPC. You can also
 click on the links in the text to ask the NPC about that.
@@ -190,7 +191,7 @@ In crossfire most things are command driven. You can enter commands in two ways:
 
 =item B<Chat Box>
 
-=for image sc_chatbox.png
+=for image sc_chatbox.jpg
 
 If you plan longer chat sessions you maybe prefer this.
 
@@ -278,7 +279,7 @@ chatters and if someone entered/left the game.
 If you press I<F3> or open the playerbook via the I<Playerbook> button on the top
 of the window and select the I<Skills> tab, you will see this:
 
-=for image sc_skill_list.png
+=for image sc_skill_list.jpg
 
 It displays all the skills you have and displays the experience points and level you gained in each.
 
@@ -287,7 +288,7 @@ It displays all the skills you have and displays the experience points and level
 If you want to see what stats and resistancies you currently have, go to the I<Statistics> tab in the
 I<Playerbook> (for example by pressing I<F2>).
 
-=for image sc_statistics.png
+=for image sc_statistics.jpg
 
 Resistancies protect you from a certain type of attack.
 
@@ -300,7 +301,7 @@ You wont see there any spell if you just started, but if you learn a spell, it w
 
 If you have learned some spells it should look like this:
 
-=for image sc_spellbook.png
+=for image sc_spellbook.jpg
 
 =back
 

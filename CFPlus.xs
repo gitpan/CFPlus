@@ -8,12 +8,22 @@
 # pragma warning(disable:4761)
 #endif
 
+//#define DEBUG 1
+#if DEBUG
+# include <valgrind/memcheck.h>
+#endif
+
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
 
 #ifdef _WIN32
 # undef pipe
+// microsoft vs. C
+# define sqrtf(x) sqrt(x)
+# define roundf(x) (int)(x)
+# define atan2f(x,y) atan2(x,y)
+# define M_PI 3.14159265f
 #endif
 
 #include <assert.h>
@@ -22,7 +32,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define USE_RWOPS 1 // for SDL_mixer:LoadMUS_RW
+
 #include <SDL.h>
+#include <SDL_thread.h>
 #include <SDL_endian.h>
 #include <SDL_image.h>
 #include <SDL_mixer.h>
@@ -103,11 +116,14 @@ del_texture (GLuint name)
 }
 
 #include "texcache.c"
+#include "rendercache.c"
 
 #include "pango-font.c"
 #include "pango-fontmap.c"
 #include "pango-render.c"
 
+typedef IV         CFPlus__Channel;
+typedef SDL_RWops *CFPlus__RW;
 typedef Mix_Chunk *CFPlus__MixChunk;
 typedef Mix_Music *CFPlus__MixMusic;
 
@@ -136,6 +152,7 @@ typedef struct cf_layout {
   float r, g, b, a; // default color for rgba mode
   int base_height;
   CFPlus__Font font;
+  rc_t *rc;
 } *CFPlus__Layout;
 
 static CFPlus__Font default_font;
@@ -188,7 +205,7 @@ typedef uint16_t tileid;
 typedef uint16_t faceid;
 
 typedef struct {
-  int name;
+  GLuint name;
   int w, h;
   float s, t;
   uint8_t r, g, b, a;
@@ -425,9 +442,63 @@ minpot (unsigned int n)
   return n + 1;
 }
 
+static unsigned int
+popcount (unsigned int n)
+{
+  n -=  (n >> 1) & 0x55555555U;
+  n  = ((n >> 2) & 0x33333333U) + (n & 0x33333333U);
+  n  = ((n >> 4) + n) & 0x0f0f0f0fU;
+  n *= 0x01010101U;
+
+  return n >> 24;
+}
+
 /* SDL should provide this, really. */
 #define SDLK_MODIFIER_MIN 300
 #define SDLK_MODIFIER_MAX 314
+
+/******************************************************************************/
+
+static GV *draw_x_gv, *draw_y_gv, *draw_w_gv, *draw_h_gv;
+static GV *hover_gv;
+
+static int
+within_widget (SV *widget, NV x, NV y)
+{
+  HV *self;
+  SV **svp;
+  NV wx, ww, wy, wh;
+
+  if (!SvROK (widget))
+    return 0;
+
+  self = (HV *)SvRV (widget);
+
+  if (SvTYPE (self) != SVt_PVHV)
+    return 0;
+
+  svp = hv_fetch (self, "y", 1, 0); wy = svp ? SvNV (*svp) : 0.;
+  if (y < wy)
+    return 0;
+
+  svp = hv_fetch (self, "h", 1, 0); wh = svp ? SvNV (*svp) : 0.;
+  if (y >= wy + wh)
+    return 0;
+
+  svp = hv_fetch (self, "x", 1, 0); wx = svp ? SvNV (*svp) : 0.;
+  if (x < wx)
+    return 0;
+
+  svp = hv_fetch (self, "w", 1, 0); ww = svp ? SvNV (*svp) : 0.;
+  if (x >= wx + ww)
+    return 0;
+
+  svp = hv_fetch (self, "can_events", sizeof ("can_events") - 1, 0);
+  if (!svp || !SvTRUE (*svp))
+    return 0;
+
+  return 1;
+}
 
 MODULE = CFPlus	PACKAGE = CFPlus
 
@@ -467,6 +538,8 @@ BOOT:
         const_iv (SDL_APPMOUSEFOCUS),
         const_iv (SDL_APPACTIVE),
 
+	const_iv (SDLK_FIRST),
+	const_iv (SDLK_LAST),
 	const_iv (SDLK_KP0),
 	const_iv (SDLK_KP1),
 	const_iv (SDLK_KP2),
@@ -575,6 +648,10 @@ NV floor (NV x)
 
 NV ceil (NV x)
 
+IV minpot (UV n)
+
+IV popcount (UV n)
+
 void
 pango_init ()
 	CODE:
@@ -584,6 +661,9 @@ pango_init ()
         opengl_context = pango_opengl_font_map_create_context ((PangoOpenGLFontMap *)opengl_fontmap);
 }
 
+char *
+SDL_GetError ()
+
 int
 SDL_Init (U32 flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | PARACHUTE)
 
@@ -591,22 +671,22 @@ void
 SDL_Quit ()
 
 void
-SDL_ListModes ()
+SDL_ListModes (int rgb, int alpha)
 	PPCODE:
 {
 	SDL_Rect **m;
 	
-        SDL_GL_SetAttribute (SDL_GL_RED_SIZE, 5);
-        SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, 5);
-        SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE, 5);
-        SDL_GL_SetAttribute (SDL_GL_ALPHA_SIZE, 1);
+        SDL_GL_SetAttribute (SDL_GL_RED_SIZE  , rgb);
+        SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, rgb);
+        SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE , rgb);
+        SDL_GL_SetAttribute (SDL_GL_ALPHA_SIZE, alpha);
 
         SDL_GL_SetAttribute (SDL_GL_BUFFER_SIZE, 15);
-        SDL_GL_SetAttribute (SDL_GL_DEPTH_SIZE, 0);
+        SDL_GL_SetAttribute (SDL_GL_DEPTH_SIZE ,  0);
 
-        SDL_GL_SetAttribute (SDL_GL_ACCUM_RED_SIZE, 0);
+        SDL_GL_SetAttribute (SDL_GL_ACCUM_RED_SIZE  , 0);
         SDL_GL_SetAttribute (SDL_GL_ACCUM_GREEN_SIZE, 0);
-        SDL_GL_SetAttribute (SDL_GL_ACCUM_BLUE_SIZE, 0);
+        SDL_GL_SetAttribute (SDL_GL_ACCUM_BLUE_SIZE , 0);
         SDL_GL_SetAttribute (SDL_GL_ACCUM_ALPHA_SIZE, 0);
 
         SDL_GL_SetAttribute (SDL_GL_DOUBLEBUFFER, 1);
@@ -615,42 +695,51 @@ SDL_ListModes ()
         SDL_GL_SetAttribute (SDL_GL_SWAP_CONTROL, 1);
 #endif
 
-        SDL_EnableUNICODE (1);
-        SDL_EnableKeyRepeat (SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-
 	m = SDL_ListModes (0, SDL_FULLSCREEN | SDL_OPENGL);
 
         if (m && m != (SDL_Rect **)-1)
           while (*m)
             {
-              AV *av = newAV ();
-              av_push (av, newSViv ((*m)->w));
-              av_push (av, newSViv ((*m)->h));
-              XPUSHs (sv_2mortal (newRV_noinc ((SV *)av)));
+              if ((*m)->w >= 640 && (*m)->h >= 480)
+                {
+                  AV *av = newAV ();
+                  av_push (av, newSViv ((*m)->w));
+                  av_push (av, newSViv ((*m)->h));
+                  av_push (av, newSViv (rgb));
+                  av_push (av, newSViv (alpha));
+                  XPUSHs (sv_2mortal (newRV_noinc ((SV *)av)));
+                }
 
               ++m;
             }
 }
 
-char *
-SDL_GetError ()
-
 int
-SDL_SetVideoMode (int w, int h, int fullscreen)
+SDL_SetVideoMode (int w, int h, int rgb, int alpha, int fullscreen)
 	CODE:
+{
+        SDL_EnableUNICODE (1);
+        SDL_EnableKeyRepeat (SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+
+        SDL_GL_SetAttribute (SDL_GL_RED_SIZE  , rgb);
+        SDL_GL_SetAttribute (SDL_GL_GREEN_SIZE, rgb);
+        SDL_GL_SetAttribute (SDL_GL_BLUE_SIZE , rgb);
+        SDL_GL_SetAttribute (SDL_GL_ALPHA_SIZE, alpha);
+
         RETVAL = !!SDL_SetVideoMode (
           w, h, 0, SDL_OPENGL | (fullscreen ? SDL_FULLSCREEN : 0)
         );
+
         if (RETVAL)
           {
             av_clear (texture_av);
 
-            SDL_WM_SetCaption ("Crossfire+ Client " VERSION, "Crossfire+");
-#           define GL_FUNC(ptr,name) gl.name = (ptr)SDL_GL_GetProcAddress ("gl" # name);
-#           include "glfunc.h"
-#           undef GL_FUNC
-
+            SDL_WM_SetCaption ("Crossfire TRT Client " VERSION, "Crossfire TRT");
+#define GL_FUNC(ptr,name) gl.name = (ptr)SDL_GL_GetProcAddress ("gl" # name);
+#include "glfunc.h"
+#undef GL_FUNC
           }
+}
 	OUTPUT:
         RETVAL
 
@@ -660,13 +749,17 @@ SDL_GL_SwapBuffers ()
 char *
 SDL_GetKeyName (int sym)
 
+int
+SDL_GetAppState ()
+
 void
-SDL_PollEvent ()
+poll_events ()
 	PPCODE:
 {
 	SDL_Event ev;
 
-        while (SDL_PollEvent (&ev))
+        SDL_PumpEvents ();
+        while (SDL_PeepEvents (&ev, 1, SDL_GETEVENT, SDL_ALLEVENTS) > 0)
           {
             HV *hv = newHV ();
             hv_store (hv, "type", 4, newSViv (ev.type), 0);
@@ -688,13 +781,31 @@ SDL_PollEvent ()
                   break;
 
                 case SDL_MOUSEMOTION:
-                  hv_store (hv, "mod",    3, newSViv (SDL_GetModState ()), 0);
+                  {
+                    int state = ev.motion.state;
+                    int x     = ev.motion.x;
+                    int y     = ev.motion.y;
+                    int xrel  = ev.motion.xrel;
+                    int yrel  = ev.motion.yrel;
 
-                  hv_store (hv, "state",  5, newSViv (ev.motion.state), 0);
-                  hv_store (hv, "x",      1, newSViv (ev.motion.x), 0);
-                  hv_store (hv, "y",      1, newSViv (ev.motion.y), 0);
-                  hv_store (hv, "xrel",   4, newSViv (ev.motion.xrel), 0);
-                  hv_store (hv, "yrel",   4, newSViv (ev.motion.yrel), 0);
+                    /* do simplistic event compression */
+                    while (SDL_PeepEvents (&ev, 1, SDL_PEEKEVENT, SDL_EVENTMASK (SDL_MOUSEMOTION)) > 0
+                           && state == ev.motion.state)
+                      {
+                        xrel += ev.motion.xrel;
+                        yrel += ev.motion.yrel;
+                        x     = ev.motion.x;
+                        y     = ev.motion.y;
+                        SDL_PeepEvents (&ev, 1, SDL_GETEVENT, SDL_EVENTMASK (SDL_MOUSEMOTION));
+                      }
+
+                    hv_store (hv, "mod",    3, newSViv (SDL_GetModState ()), 0);
+                    hv_store (hv, "state",  5, newSViv (state), 0);
+                    hv_store (hv, "x",      1, newSViv (x), 0);
+                    hv_store (hv, "y",      1, newSViv (y), 0);
+                    hv_store (hv, "xrel",   4, newSViv (xrel), 0);
+                    hv_store (hv, "yrel",   4, newSViv (yrel), 0);
+                  }
                   break;
 
                 case SDL_MOUSEBUTTONDOWN:
@@ -719,7 +830,7 @@ SDL_PollEvent ()
 }
 
 int
-Mix_OpenAudio (int frequency = 48000, int format = MIX_DEFAULT_FORMAT, int channels = 1, int chunksize = 2048)
+Mix_OpenAudio (int frequency = 44100, int format = MIX_DEFAULT_FORMAT, int channels = 2, int chunksize = 1024)
   	POSTCALL:
         Mix_HookMusicFinished (music_finished);
         Mix_ChannelFinished (channel_finished);
@@ -729,6 +840,9 @@ Mix_CloseAudio ()
 
 int
 Mix_AllocateChannels (int numchans = -1)
+
+const char *
+Mix_GetError ()
 
 void
 lowdelay (int fd, int val = 1)
@@ -780,7 +894,7 @@ load_image_inline (SV *image_)
         SDL_Surface *surface, *surface2;
         SDL_PixelFormat fmt;
 	SDL_RWops *rw = ix
-          ? SDL_RWFromFile (image, "r")
+          ? SDL_RWFromFile (image, "rb")
           : SDL_RWFromConstMem (image, image_len);
 
         if (!rw)
@@ -884,7 +998,18 @@ _exit (int retval = 0)
         _exit (retval);
 #endif
 
+void
+debug ()
+	CODE:
+{
+#if DEBUG
+	VALGRIND_DO_LEAK_CHECK;
+#endif
+}
+
 MODULE = CFPlus	PACKAGE = CFPlus::Font
+
+PROTOTYPES: DISABLE
 
 CFPlus::Font
 new_from_file (SV *class, char *path, int id = 0)
@@ -905,13 +1030,17 @@ DESTROY (CFPlus::Font self)
 
 void
 make_default (CFPlus::Font self)
+	PROTOTYPE: $
 	CODE:
         default_font = self;
 
 MODULE = CFPlus	PACKAGE = CFPlus::Layout
 
+PROTOTYPES: DISABLE
+
 void
 reset_glyph_cache ()
+	PROTOTYPE:
 	CODE:
         tc_clear ();
 
@@ -927,6 +1056,7 @@ new (SV *class)
         RETVAL->a           = 1.;
         RETVAL->base_height = MIN_FONT_HEIGHT;
         RETVAL->font        = 0;
+        RETVAL->rc          = rc_alloc ();
 
         pango_layout_set_wrap (RETVAL->pl, PANGO_WRAP_WORD_CHAR);
         layout_update_font (RETVAL);
@@ -937,6 +1067,7 @@ void
 DESTROY (CFPlus::Layout self)
 	CODE:
         g_object_unref (self->pl);
+        rc_free (self->rc);
         Safefree (self);
 
 void
@@ -1198,50 +1329,61 @@ line_x_to_index (CFPlus::Layout self, int line, int x)
 
 void
 render (CFPlus::Layout self, float x, float y, int flags = 0)
-	PPCODE:
+	CODE:
+        rc_clear (self->rc);
         pango_opengl_render_layout_subpixel (
           self->pl,
+          self->rc,
           x * PANGO_SCALE, y * PANGO_SCALE,
           self->r, self->g, self->b, self->a,
           flags
         );
+        // we assume that context_change actually clears/frees stuff
+        // and does not do any recomputation...
+        pango_layout_context_changed (self->pl);
+
+void
+draw (CFPlus::Layout self)
+	CODE:
+{
+        glEnable (GL_TEXTURE_2D);
+        glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+        glEnable (GL_BLEND);
+        gl_BlendFuncSeparate (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                              GL_ONE      , GL_ONE_MINUS_SRC_ALPHA);
+        glEnable (GL_ALPHA_TEST);
+        glAlphaFunc (GL_GREATER, 7.f / 255.f);
+
+        rc_draw (self->rc);
+
+        glDisable (GL_ALPHA_TEST);
+        glDisable (GL_BLEND);
+        glDisable (GL_TEXTURE_2D);
+}
 
 MODULE = CFPlus	PACKAGE = CFPlus::Texture
 
+PROTOTYPES: ENABLE
+
 void
-pad2pot (SV *data_, SV *w_, SV *h_)
+pad (SV *data_, int ow, int oh, int nw, int nh)
 	CODE:
 {
-        int ow = SvIV (w_);
-        int oh = SvIV (h_);
-
-        if (ow && oh)
+        if ((nw != ow || nh != oh) && SvOK (data_))
           {
-            int nw = minpot (ow);
-            int nh = minpot (oh);
+            STRLEN datalen;
+            char *data = SvPVbyte (data_, datalen);
+            int bpp = datalen / (ow * oh);
+            SV *result_ = sv_2mortal (newSV (nw * nh * bpp));
 
-            if (nw != ow || nh != oh)
-              {
-                if (SvOK (data_))
-                  {
-                    STRLEN datalen;
-                    char *data = SvPVbyte (data_, datalen);
-                    int bpp = datalen / (ow * oh);
-                    SV *result_ = sv_2mortal (newSV (nw * nh * bpp));
+            SvPOK_only (result_);
+            SvCUR_set (result_, nw * nh * bpp);
 
-                    SvPOK_only (result_);
-                    SvCUR_set (result_, nw * nh * bpp);
+            memset (SvPVX (result_), 0, nw * nh * bpp);
+            while (oh--)
+              memcpy (SvPVX (result_) + oh * nw * bpp, data + oh * ow * bpp, ow * bpp);
 
-                    memset (SvPVX (result_), 0, nw * nh * bpp);
-                    while (oh--)
-                      memcpy (SvPVX (result_) + oh * nw * bpp, data + oh * ow * bpp, ow * bpp);
-
-                    sv_setsv (data_, result_);
-                  }
-
-                sv_setiv (w_, nw);
-                sv_setiv (h_, nh);
-              }
+            sv_setsv (data_, result_);
           }
 }
 
@@ -1257,6 +1399,9 @@ draw_quad (SV *self, float x, float y, float w = 0., float h = 0.)
 	float s = SvNV (*hv_fetch (hv, "s", 1, 1));
 	float t = SvNV (*hv_fetch (hv, "t", 1, 1));
         int name = SvIV (*hv_fetch (hv, "name", 4, 1));
+
+        if (name <= 0)
+          XSRETURN_EMPTY;
 
         if (items < 5)
           {
@@ -1294,7 +1439,20 @@ draw_quad (SV *self, float x, float y, float w = 0., float h = 0.)
           }
 }
 
+IV texture_valid_2d (GLint internalformat, GLsizei w, GLsizei h, GLenum format, GLenum type)
+	CODE:
+{
+        GLint width;
+        glTexImage2D (GL_PROXY_TEXTURE_2D, 0, internalformat, w, h, 0, format, type, 0);
+        glGetTexLevelParameteriv (GL_PROXY_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+        RETVAL = width > 0;
+}
+	OUTPUT:
+        RETVAL
+
 MODULE = CFPlus	PACKAGE = CFPlus::Map
+
+PROTOTYPES: DISABLE
 
 CFPlus::Map
 new (SV *class)
@@ -1442,14 +1600,16 @@ scroll (CFPlus::Map self, int dx, int dy)
           }
 }
 
-void
+SV *
 map1a_update (CFPlus::Map self, SV *data_, int extmap)
 	CODE:
 {
         uint8_t *data = (uint8_t *)SvPVbyte_nolen (data_);
         uint8_t *data_end = (uint8_t *)SvEND (data_);
         mapcell *cell;
-        int x, y, flags;
+        int x, y, z, flags;
+        AV *missing = newAV ();
+        RETVAL = newRV_noinc ((SV *)missing);
 
         while (data < data_end - 1)
           {
@@ -1510,31 +1670,34 @@ map1a_update (CFPlus::Map self, SV *data_, int extmap)
                       cell->darkness = *data++ + 1;
                   }
 
-                if (flags & 4)
-                  {
-                    faceid face = (data [0] << 8) + data [1]; data += 2;
-                    need_facenum (self, face);
-                    cell->tile [0] = self->face2tile [face];
-                  }
+                for (z = 0; z <= 2; ++z)
+                  if (flags & (4 >> z))
+                    {
+                      faceid face = (data [0] << 8) + data [1]; data += 2;
+                      need_facenum (self, face);
+                      cell->tile [z] = self->face2tile [face];
 
-                if (flags & 2)
-                  {
-                    faceid face = (data [0] << 8) + data [1]; data += 2;
-                    need_facenum (self, face);
-                    cell->tile [1] = self->face2tile [face];
-                  }
+                      if (cell->tile [z])
+                        {
+                          maptex *tex = self->tex + cell->tile [z];
+                          if (!tex->name)
+                            av_push (missing, newSViv (cell->tile [z]));
 
-                if (flags & 1)
-                  {
-                    faceid face = (data [0] << 8) + data [1]; data += 2;
-                    need_facenum (self, face);
-                    cell->tile [2] = self->face2tile [face];
-                  }
+                          if (tex->smoothtile)
+                            {
+                              maptex *smooth = self->tex + tex->smoothtile;
+                              if (!smooth->name)
+                                av_push (missing, newSViv (tex->smoothtile));
+                            }
+                        }
+                    }
               }
             else
               cell->darkness = 0;
           }
 }
+	OUTPUT:
+        RETVAL
 
 SV *
 mapmap (CFPlus::Map self, int x0, int y0, int w, int h)
@@ -1595,12 +1758,16 @@ void
 draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
 	CODE:
 {
+        int x, y, z;
+
   	HV *smooth = (HV *)sv_2mortal ((SV *)newHV ());
         uint32_t smooth_level[256 / 32]; // one bit for every possible smooth level
-        static uint8_t smooth_max[256][256]; // egad, fats and wasteful on memory (64k)
+        static uint8_t smooth_max[256][256]; // egad, fast and wasteful on memory (64k)
         smooth_key skey;
-        int x, y, z;
-        int last_name;
+
+        rc_t *rc = rc_alloc ();
+        rc_key_t key;
+        rc_array_t *arr;
 
         // thats current max. sorry.
         if (sw > 255) sw = 255;
@@ -1609,16 +1776,14 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
         // clear key, in case of extra padding
         memset (&skey, 0, sizeof (skey));
 
-        glColor4ub (255, 255, 255, 255);
-
-        glEnable (GL_BLEND);
-        glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable (GL_TEXTURE_2D);
-        glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-
-        glBegin (GL_QUADS);
-
-        last_name = 0;
+        memset (&key, 0, sizeof (key));
+        key.r       = 255;
+        key.g       = 255;
+        key.b       = 255;
+        key.a       = 255;
+        key.mode    = GL_QUADS;
+        key.format  = GL_T2F_V3F;
+        key.texname = -1;
 
         mx += self->x;
         my += self->y;
@@ -1645,6 +1810,10 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
                   }
             }
 
+        glEnable (GL_BLEND);
+        glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
         for (z = 0; z <= 2; z++)
           {
             memset (smooth_level, 0, sizeof (smooth_level));
@@ -1663,42 +1832,47 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
                         if (tile)
                           {
                             maptex tex = self->tex [tile];
-                            int px = (x + 1) * T - tex.w;
-                            int py = (y + 1) * T - tex.h;
+                            int px, py;
 
-                            // suppressing texture state switches here
-                            // is only moderately effective, but worth the extra effort
-                            if (last_name != tex.name)
+                            if (key.texname != tex.name)
                               {
                                 if (!tex.name)
                                   tex = self->tex [2]; /* missing, replace by noface */
 
-                                glEnd ();
-                                glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
-                                glBegin (GL_QUADS);
+                                key.texname = tex.name;
+                                arr = rc_array (rc, &key);
                               }
 
-                            glTexCoord2f (0    , 0    ); glVertex2f (px        , py        );
-                            glTexCoord2f (0    , tex.t); glVertex2f (px        , py + tex.h);
-                            glTexCoord2f (tex.s, tex.t); glVertex2f (px + tex.w, py + tex.h);
-                            glTexCoord2f (tex.s, 0    ); glVertex2f (px + tex.w, py        );
+                            px = (x + 1) * T - tex.w;
+                            py = (y + 1) * T - tex.h;
+
+                            rc_t2f_v3f (arr, 0    , 0    , px        , py        , 0);
+                            rc_t2f_v3f (arr, 0    , tex.t, px        , py + tex.h, 0);
+                            rc_t2f_v3f (arr, tex.s, tex.t, px + tex.w, py + tex.h, 0);
+                            rc_t2f_v3f (arr, tex.s, 0    , px + tex.w, py        , 0);
 
                             if (cell->flags && z == 2)
                               {
+                                // overlays such as the speech bubble, probably more to come
                                 if (cell->flags & 1)
                                   {
                                     maptex tex = self->tex [1];
                                     int px = x * T + T * 2 / 32;
                                     int py = y * T - T * 6 / 32;
 
-                                    glEnd ();
-                                    glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
-                                    glBegin (GL_QUADS);
+                                    if (tex.name)
+                                      {
+                                        if (key.texname != tex.name)
+                                          {
+                                            key.texname = tex.name;
+                                            arr = rc_array (rc, &key);
+                                          }
 
-                                    glTexCoord2f (0    , 0    ); glVertex2f (px    , py    );
-                                    glTexCoord2f (0    , tex.t); glVertex2f (px    , py + T);
-                                    glTexCoord2f (tex.s, tex.t); glVertex2f (px + T, py + T);
-                                    glTexCoord2f (tex.s, 0    ); glVertex2f (px + T, py    );
+                                        rc_t2f_v3f (arr, 0    , 0    , px    , py    , 0);
+                                        rc_t2f_v3f (arr, 0    , tex.t, px    , py + T, 0);
+                                        rc_t2f_v3f (arr, tex.s, tex.t, px + T, py + T, 0);
+                                        rc_t2f_v3f (arr, tex.s, 0    , px + T, py    , 0);
+                                      }
                                   }
                               }
 
@@ -1744,11 +1918,16 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
                       }
               }
 
+            rc_draw (rc);
+            rc_clear (rc);
+
             // go through all smoothlevels, lowest to highest, then draw.
             // this is basically counting sort
             {
               int w, b;
 
+              glEnable (GL_TEXTURE_2D);
+              glBegin (GL_QUADS);
               for (w = 0; w < 256 / 32; ++w)
                 {
                   uint32_t smask = smooth_level [w];
@@ -1777,50 +1956,52 @@ draw (CFPlus::Map self, int mx, int my, int sw, int sh, int T)
                                   float dx = tex.s * .0625f; // 16 images/row
                                   float dy = tex.t * .5f   ; // 2 images/column
 
-                                  // this time naively avoiding texture state changes
-                                  // save gobs of state changes.
-                                  if (last_name != tex.name)
+                                  if (tex.name)
                                     {
-                                      if (!tex.name)
-                                        continue; // smoothing not yet available
+                                      // this time avoiding texture state changes
+                                      // save gobs of state changes.
+                                      if (key.texname != tex.name)
+                                        {
+                                          glEnd ();
+                                          glBindTexture (GL_TEXTURE_2D, key.texname = tex.name);
+                                          glBegin (GL_QUADS);
+                                        }
 
-                                      glEnd ();
-                                      glBindTexture (GL_TEXTURE_2D, last_name = tex.name);
-                                      glBegin (GL_QUADS);
-                                    }
+                                      if (border)
+                                        {
+                                          float ox = border * dx;
 
-                                  if (border)
-                                    {
-                                      float ox = border * dx;
+                                          glTexCoord2f (ox     , 0.f     ); glVertex2i (px    , py    );
+                                          glTexCoord2f (ox     , dy      ); glVertex2i (px    , py + T);
+                                          glTexCoord2f (ox + dx, dy      ); glVertex2i (px + T, py + T);
+                                          glTexCoord2f (ox + dx, 0.f     ); glVertex2i (px + T, py    );
+                                        }
 
-                                      glTexCoord2f (ox     , 0.f     ); glVertex2f (px    , py    );
-                                      glTexCoord2f (ox     , dy      ); glVertex2f (px    , py + T);
-                                      glTexCoord2f (ox + dx, dy      ); glVertex2f (px + T, py + T);
-                                      glTexCoord2f (ox + dx, 0.f     ); glVertex2f (px + T, py    );
-                                    }
+                                      if (corner)
+                                        {
+                                          float ox = corner * dx;
 
-                                  if (corner)
-                                    {
-                                      float ox = corner * dx;
-
-                                      glTexCoord2f (ox     , dy      ); glVertex2f (px    , py    );
-                                      glTexCoord2f (ox     , dy * 2.f); glVertex2f (px    , py + T);
-                                      glTexCoord2f (ox + dx, dy * 2.f); glVertex2f (px + T, py + T);
-                                      glTexCoord2f (ox + dx, dy      ); glVertex2f (px + T, py    );
+                                          glTexCoord2f (ox     , dy      ); glVertex2i (px    , py    );
+                                          glTexCoord2f (ox     , dy * 2.f); glVertex2i (px    , py + T);
+                                          glTexCoord2f (ox + dx, dy * 2.f); glVertex2i (px + T, py + T);
+                                          glTexCoord2f (ox + dx, dy      ); glVertex2i (px + T, py    );
+                                        }
                                     }
                                 }
                             }
                         }
                 }
+
+              glEnd ();
+              glDisable (GL_TEXTURE_2D);
+              key.texname = -1;
             }
 
             hv_clear (smooth);
           }
 
-	glEnd ();
-
-        glDisable (GL_TEXTURE_2D);
         glDisable (GL_BLEND);
+        rc_free (rc);
 
         // top layer: overlays such as the health bar
         for (y = 0; y < sh; y++)
@@ -1919,37 +2100,80 @@ fow_texture (CFPlus::Map self, int mx, int my, int sw, int sh)
 	PPCODE:
 {
         int x, y;
-        int sw4 = (sw + 3) & ~3;
-	SV *darkness_sv = sv_2mortal (newSV (sw4 * sh));
-        uint8_t *darkness = (uint8_t *)SvPVX (darkness_sv);
+        int sw1  = sw + 2;
+        int sh1  = sh + 2;
+        int sh3  = sh * 3;
+        int sw34 = (sw * 3 + 3) & ~3;
+        uint8_t *darkness1 = (uint8_t *)malloc (sw1 * sh1);
+        SV *darkness3_sv = sv_2mortal (newSV (sw34 * sh3));
+        uint8_t *darkness3 = (uint8_t *)SvPVX (darkness3_sv);
 
-        memset (darkness, 255, sw4 * sh);
-        SvPOK_only (darkness_sv);
-        SvCUR_set (darkness_sv, sw4 * sh);
+        SvPOK_only (darkness3_sv);
+        SvCUR_set (darkness3_sv, sw34 * sh3);
 
-        mx += self->x;
-        my += self->y;
+        mx += self->x - 1;
+        my += self->y - 1;
 
-        for (y = 0; y < sh; y++)
+        memset (darkness1, 255, sw1 * sh1);
+
+        for (y = 0; y < sh1; y++)
           if (0 <= y + my && y + my < self->rows)
             {
               maprow *row = self->row + (y + my);
 
-              for (x = 0; x < sw; x++)
+              for (x = 0; x < sw1; x++)
                 if (row->c0 <= x + mx && x + mx < row->c1)
                   {
                     mapcell *cell = row->col + (x + mx - row->c0);
 
-                    darkness[y * sw4 + x] = cell->darkness
+                    darkness1 [y * sw1 + x] = cell->darkness
                       ? 255 - (cell->darkness - 1)
                       : 255 - FOW_DARKNESS;
                   }
             }
 
+        for (y = 0; y < sh; ++y)
+          for (x = 0; x < sw; ++x)
+            {
+              uint8_t d11 = darkness1 [(y    ) * sw1 + x    ];
+              uint8_t d21 = darkness1 [(y    ) * sw1 + x + 1];
+              uint8_t d31 = darkness1 [(y    ) * sw1 + x + 2];
+              uint8_t d12 = darkness1 [(y + 1) * sw1 + x    ];
+              uint8_t d22 = darkness1 [(y + 1) * sw1 + x + 1];
+              uint8_t d32 = darkness1 [(y + 1) * sw1 + x + 2];
+              uint8_t d13 = darkness1 [(y + 2) * sw1 + x    ];
+              uint8_t d23 = darkness1 [(y + 2) * sw1 + x + 1];
+              uint8_t d33 = darkness1 [(y + 2) * sw1 + x + 2];
+
+              uint8_t r11 = (d11 + d21 + d12) / 3;
+              uint8_t r21 = d21;
+              uint8_t r31 = (d21 + d31 + d32) / 3;
+
+              uint8_t r12 = d12;
+              uint8_t r22 = d22;
+              uint8_t r32 = d32;
+
+              uint8_t r13 = (d13 + d23 + d12) / 3;
+              uint8_t r23 = d23;
+              uint8_t r33 = (d23 + d33 + d32) / 3;
+
+              darkness3 [(y * 3    ) * sw34 + (x * 3    )] = MAX (d22, r11);
+              darkness3 [(y * 3    ) * sw34 + (x * 3 + 1)] = MAX (d22, r21);
+              darkness3 [(y * 3    ) * sw34 + (x * 3 + 2)] = MAX (d22, r31);
+              darkness3 [(y * 3 + 1) * sw34 + (x * 3    )] = MAX (d22, r12);
+              darkness3 [(y * 3 + 1) * sw34 + (x * 3 + 1)] = MAX (d22, r22);
+              darkness3 [(y * 3 + 1) * sw34 + (x * 3 + 2)] = MAX (d22, r32);
+              darkness3 [(y * 3 + 2) * sw34 + (x * 3    )] = MAX (d22, r13);
+              darkness3 [(y * 3 + 2) * sw34 + (x * 3 + 1)] = MAX (d22, r23);
+              darkness3 [(y * 3 + 2) * sw34 + (x * 3 + 2)] = MAX (d22, r33);
+            }
+
+        free (darkness1);
+
         EXTEND (SP, 3);
-        PUSHs (sv_2mortal (newSViv (sw4)));
-        PUSHs (sv_2mortal (newSViv (sh)));
-        PUSHs (darkness_sv);
+        PUSHs (sv_2mortal (newSViv (sw34)));
+        PUSHs (sv_2mortal (newSViv (sh3)));
+        PUSHs (darkness3_sv);
 }
 
 SV *
@@ -2036,7 +2260,7 @@ set_rect (CFPlus::Map self, int x0, int y0, uint8_t *data)
         int x1, y1;
 
         if (*data++ != 0)
-          return; /* version mismatch */
+          XSRETURN_EMPTY; /* version mismatch */
 
         w = *data++ << 8; w |= *data++;
         h = *data++ << 8; h |= *data++;
@@ -2091,12 +2315,125 @@ set_rect (CFPlus::Map self, int x0, int y0, uint8_t *data)
           }
 }
 
+MODULE = CFPlus	PACKAGE = CFPlus::RW
+
+CFPlus::RW
+new (SV *class, SV *data_sv)
+	CODE:
+{
+        STRLEN datalen;
+        char *data = SvPVbyte (data_sv, datalen);
+
+        RETVAL = SDL_RWFromConstMem (data, datalen);
+}
+	OUTPUT:
+        RETVAL
+
+CFPlus::RW
+new_from_file (SV *class, const char *path, const char *mode = "rb")
+	CODE:
+        RETVAL = SDL_RWFromFile (path, mode);
+	OUTPUT:
+        RETVAL
+
+# fails on win32:
+# CFPlus.xs(2268) : error C2059: syntax error : '('
+#void
+#close (CFPlus::RW self)
+#	CODE:
+#        (self->(close)) (self);
+
+MODULE = CFPlus	PACKAGE = CFPlus::Channel
+
+PROTOTYPES: DISABLE
+
+CFPlus::Channel
+find ()
+	CODE:
+{
+        RETVAL = Mix_GroupAvailable (-1);
+
+        if (RETVAL < 0)
+          {
+            RETVAL = Mix_GroupOldest (-1);
+
+            if (RETVAL < 0)
+              XSRETURN_UNDEF;
+
+            Mix_HaltChannel (RETVAL);
+          }
+
+        Mix_UnregisterAllEffects (RETVAL);
+        Mix_Volume (RETVAL, 128);
+}
+	OUTPUT:
+        RETVAL
+
+void
+halt (CFPlus::Channel self)
+	CODE:
+        Mix_HaltChannel (self);
+
+void
+expire (CFPlus::Channel self, int ticks = -1)
+	CODE:
+        Mix_ExpireChannel (self, ticks);
+
+void
+fade_out (CFPlus::Channel self, int ticks = -1)
+	CODE:
+        Mix_FadeOutChannel (self, ticks);
+
+int
+volume (CFPlus::Channel self, int volume)
+	CODE:
+        RETVAL = Mix_Volume (self, CLAMP (volume, 0, 128));
+	OUTPUT:
+        RETVAL
+
+void
+unregister_all_effects (CFPlus::Channel self)
+	CODE:
+        Mix_UnregisterAllEffects (self);
+
+void
+set_panning (CFPlus::Channel self, int left, int right)
+	CODE:
+        left  = CLAMP (left , 0, 255);
+        right = CLAMP (right, 0, 255);
+        Mix_SetPanning (self, left, right);
+
+void
+set_distance (CFPlus::Channel self, int distance)
+	CODE:
+        Mix_SetDistance (self, CLAMP (distance, 0, 255));
+
+void
+set_position (CFPlus::Channel self, int angle, int distance)
+	CODE:
+
+void
+set_position_r (CFPlus::Channel self, int dx, int dy, int maxdistance)
+	CODE:
+{
+	int distance = sqrtf (dx * dx + dy * dy) * (255.f / sqrtf (maxdistance * maxdistance));
+        int angle = 360 + (int)roundf (atan2f (dx, -dy) * 180.f / (float)M_PI);
+        Mix_SetPosition (self, angle, CLAMP (distance, 0, 255));
+}
+
+void
+set_reverse_stereo (CFPlus::Channel self, int flip)
+	CODE:
+        Mix_SetReverseStereo (self, flip);
+
 MODULE = CFPlus	PACKAGE = CFPlus::MixChunk
 
+PROTOTYPES: DISABLE
+
 CFPlus::MixChunk
-new_from_file (SV *class, char *path)
+new (SV *class, CFPlus::RW rwops)
 	CODE:
-        RETVAL = Mix_LoadWAV (path);
+        RETVAL = Mix_LoadWAV_RW (rwops, 1);
 	OUTPUT:
         RETVAL
 
@@ -2108,14 +2445,27 @@ DESTROY (CFPlus::MixChunk self)
 int
 volume (CFPlus::MixChunk self, int volume = -1)
 	CODE:
+        if (items > 1)
+          volume = CLAMP (volume, 0, 128);
         RETVAL = Mix_VolumeChunk (self, volume);
 	OUTPUT:
         RETVAL
 
-int
-play (CFPlus::MixChunk self, int channel = -1, int loops = 0, int ticks = -1)
+CFPlus::Channel
+play (CFPlus::MixChunk self, CFPlus::Channel channel = -1, int loops = 0, int ticks = -1)
 	CODE:
+{
         RETVAL = Mix_PlayChannelTimed (channel, self, loops, ticks);
+
+        if (RETVAL < 0)
+          XSRETURN_UNDEF;
+
+        if (channel < 0)
+          {
+            Mix_UnregisterAllEffects (RETVAL);
+            Mix_Volume (RETVAL, 128);
+          }
+}
 	OUTPUT:
         RETVAL
 
@@ -2123,15 +2473,28 @@ MODULE = CFPlus	PACKAGE = CFPlus::MixMusic
 
 int
 volume (int volume = -1)
+	PROTOTYPE: ;$
 	CODE:
+        if (items > 0)
+          volume = CLAMP (volume, 0, 128);
         RETVAL = Mix_VolumeMusic (volume);
 	OUTPUT:
         RETVAL
 
-CFPlus::MixMusic
-new_from_file (SV *class, char *path)
+void
+fade_out (int ms)
 	CODE:
-        RETVAL = Mix_LoadMUS (path);
+        Mix_FadeOutMusic (ms);
+
+void
+halt ()
+	CODE:
+        Mix_HaltMusic ();
+
+CFPlus::MixMusic
+new (SV *class, CFPlus::RW rwops)
+	CODE:
+        RETVAL = Mix_LoadMUS_RW (rwops);
 	OUTPUT:
         RETVAL
 
@@ -2147,7 +2510,14 @@ play (CFPlus::MixMusic self, int loops = -1)
 	OUTPUT:
         RETVAL
 
+void
+fade_in_pos (CFPlus::MixMusic self, int loops, int ms, double position)
+	CODE:
+        Mix_FadeInMusicPos (self, loops, ms, position);
+
 MODULE = CFPlus	PACKAGE = CFPlus::OpenGL
+
+PROTOTYPES: ENABLE
 
 BOOT:
 {
@@ -2157,6 +2527,9 @@ BOOT:
     IV iv;
   } *civ, const_iv[] = {
 #	define const_iv(name) { # name, (IV)name }
+        const_iv (GL_VENDOR),
+        const_iv (GL_VERSION),
+        const_iv (GL_EXTENSIONS),
 	const_iv (GL_COLOR_MATERIAL),
 	const_iv (GL_SMOOTH),
 	const_iv (GL_FLAT),
@@ -2170,6 +2543,7 @@ BOOT:
 	const_iv (GL_RESCALE_NORMAL),
 	const_iv (GL_FRONT),
 	const_iv (GL_BACK),
+	const_iv (GL_AUX0),
         const_iv (GL_AND),
 	const_iv (GL_ONE),
 	const_iv (GL_ZERO),
@@ -2192,7 +2566,15 @@ BOOT:
 	const_iv (GL_LUMINANCE_ALPHA),
 	const_iv (GL_FLOAT),
 	const_iv (GL_UNSIGNED_INT_8_8_8_8_REV),
+        const_iv (GL_COMPRESSED_ALPHA_ARB),
+        const_iv (GL_COMPRESSED_LUMINANCE_ARB),
+        const_iv (GL_COMPRESSED_LUMINANCE_ALPHA_ARB),
+        const_iv (GL_COMPRESSED_INTENSITY_ARB),
+        const_iv (GL_COMPRESSED_RGB_ARB),
+        const_iv (GL_COMPRESSED_RGBA_ARB),
 	const_iv (GL_COMPILE),
+	const_iv (GL_PROXY_TEXTURE_1D),
+	const_iv (GL_PROXY_TEXTURE_2D),
 	const_iv (GL_TEXTURE_1D),
 	const_iv (GL_TEXTURE_2D),
 	const_iv (GL_TEXTURE_ENV),
@@ -2223,6 +2605,7 @@ BOOT:
 	const_iv (GL_CONVOLUTION_2D),
 	const_iv (GL_CONVOLUTION_BORDER_MODE),
 	const_iv (GL_CONSTANT_BORDER),
+	const_iv (GL_POINTS),
 	const_iv (GL_LINES),
 	const_iv (GL_LINE_STRIP),
 	const_iv (GL_LINE_LOOP),
@@ -2231,8 +2614,16 @@ BOOT:
 	const_iv (GL_TRIANGLES),
 	const_iv (GL_TRIANGLE_STRIP),
 	const_iv (GL_TRIANGLE_FAN),
+	const_iv (GL_POLYGON),
 	const_iv (GL_PERSPECTIVE_CORRECTION_HINT),
+        const_iv (GL_POINT_SMOOTH_HINT),
+        const_iv (GL_LINE_SMOOTH_HINT),
+        const_iv (GL_POLYGON_SMOOTH_HINT),
+        const_iv (GL_GENERATE_MIPMAP_HINT),
+        const_iv (GL_TEXTURE_COMPRESSION_HINT),
         const_iv (GL_FASTEST),
+        const_iv (GL_DONT_CARE),
+        const_iv (GL_NICEST),
         const_iv (GL_V2F),
         const_iv (GL_V3F),
         const_iv (GL_T2F_V3F),
@@ -2246,6 +2637,12 @@ BOOT:
   texture_av = newAV ();
   AvREAL_off (texture_av);
 }
+
+void
+disable_GL_EXT_blend_func_separate ()
+	CODE:
+        gl.BlendFuncSeparate    = 0;
+        gl.BlendFuncSeparateEXT = 0;
 
 char *
 gl_vendor ()
@@ -2265,6 +2662,20 @@ char *
 gl_extensions ()
 	CODE:
         RETVAL = (char *)glGetString (GL_EXTENSIONS);
+	OUTPUT:
+        RETVAL
+
+const char *glGetString (GLenum pname)
+
+GLint glGetInteger (GLenum pname)
+	CODE:
+        glGetIntegerv (pname, &RETVAL);
+	OUTPUT:
+        RETVAL
+
+GLdouble glGetDouble (GLenum pname)
+	CODE:
+        glGetDoublev (pname, &RETVAL);
 	OUTPUT:
         RETVAL
 
@@ -2315,6 +2726,8 @@ void glFrustum (double left, double right, double bottom, double top, double nea
 # near_ and far_ are due to microsofts buggy "c" compiler
 void glOrtho (double left, double right, double bottom, double top, double near_, double far_)
 
+PROTOTYPES: DISABLE
+
 void glViewport (int x, int y, int width, int height)
 
 void glScissor (int x, int y, int width, int height)
@@ -2331,12 +2744,7 @@ void glRotate (float angle, float x, float y, float z)
         CODE:
         glRotatef (angle, x, y, z);
 
-void glBegin (int mode)
-
-void glEnd ()
-
 void glColor (float r, float g, float b, float a = 1.0)
-	PROTOTYPE: @
         ALIAS:
            glColor_premultiply = 1
         CODE:
@@ -2348,12 +2756,6 @@ void glColor (float r, float g, float b, float a = 1.0)
           }
         // microsoft visual "c" rounds instead of truncating...
         glColor4f (r, g, b, a);
-
-void glInterleavedArrays (int format, int stride, char *data)
-
-void glDrawElements (int mode, int count, int type, char *indices)
-
-# 1.2 void glDrawRangeElements (int mode, int start, int end
 
 void glRasterPos (float x, float y, float z = 0.)
         CODE:
@@ -2367,6 +2769,35 @@ void glVertex (float x, float y, float z = 0.)
 void glTexCoord (float s, float t)
         CODE:
         glTexCoord2f (s, t);
+
+void glRect (float x1, float y1, float x2, float y2)
+	CODE:
+        glRectf (x1, y1, x2, y2);
+
+void glRect_lineloop (float x1, float y1, float x2, float y2)
+	CODE:
+	glBegin (GL_LINE_LOOP);
+	glVertex2f (x1, y1);
+	glVertex2f (x2, y1);
+	glVertex2f (x2, y2);
+	glVertex2f (x1, y2);
+	glEnd ();
+
+PROTOTYPES: ENABLE
+
+void glBegin (int mode)
+
+void glEnd ()
+
+void glPointSize (GLfloat size)
+
+void glLineWidth (GLfloat width)
+
+void glInterleavedArrays (int format, int stride, char *data)
+
+void glDrawElements (int mode, int count, int type, char *indices)
+
+# 1.2 void glDrawRangeElements (int mode, int start, int end
 
 void glTexEnv (int target, int pname, float param)
         CODE:
@@ -2399,6 +2830,8 @@ void glCopyTexImage2D (int target, int level, int internalformat, int x, int y, 
 
 void glDrawPixels (int width, int height, int format, int type, char *pixels)
 
+void glPixelZoom (float x, float y)
+
 void glCopyPixels (int x, int y, int width, int height, int type = GL_COLOR)
 
 int glGenTexture ()
@@ -2426,4 +2859,112 @@ void glNewList (int list, int mode = GL_COMPILE)
 void glEndList ()
 
 void glCallList (int list)
+
+MODULE = CFPlus	PACKAGE = CFPlus::UI::Base
+
+PROTOTYPES: DISABLE
+
+void
+find_widget (SV *self, NV x, NV y)
+	PPCODE:
+{
+  	if (within_widget (self, x, y))
+          XPUSHs (self);
+}
+
+BOOT:
+{
+  hover_gv = gv_fetchpv ("CFPlus::UI::HOVER", 1, SVt_NV);
+
+  draw_x_gv = gv_fetchpv ("CFPlus::UI::Base::draw_x", 1, SVt_NV);
+  draw_y_gv = gv_fetchpv ("CFPlus::UI::Base::draw_y", 1, SVt_NV);
+  draw_w_gv = gv_fetchpv ("CFPlus::UI::Base::draw_w", 1, SVt_NV);
+  draw_h_gv = gv_fetchpv ("CFPlus::UI::Base::draw_h", 1, SVt_NV);
+}
+
+void
+draw (SV *self)
+	CODE:
+{
+  	HV *hv;
+  	SV **svp;
+	NV x, y, w, h;
+        SV *draw_x_sv = GvSV (draw_x_gv);
+        SV *draw_y_sv = GvSV (draw_y_gv);
+        SV *draw_w_sv = GvSV (draw_w_gv);
+        SV *draw_h_sv = GvSV (draw_h_gv);
+        double draw_x, draw_y;
+
+        if (!SvROK (self))
+          croak ("CFPlus::Base::draw: %s not a reference", SvPV_nolen (self));
+
+        hv = (HV *)SvRV (self);
+
+        if (SvTYPE (hv) != SVt_PVHV)
+          croak ("CFPlus::Base::draw: %s not a hashref", SvPV_nolen (self));
+
+        svp = hv_fetch (hv, "w", 1, 0); w = svp ? SvNV (*svp) : 0.;
+        svp = hv_fetch (hv, "h", 1, 0); h = svp ? SvNV (*svp) : 0.;
+
+        if (!h || !w)
+          XSRETURN_EMPTY;
+
+        svp = hv_fetch (hv, "x", 1, 0); x = svp ? SvNV (*svp) : 0.;
+        svp = hv_fetch (hv, "y", 1, 0); y = svp ? SvNV (*svp) : 0.;
+
+        draw_x = SvNV (draw_x_sv) + x;
+        draw_y = SvNV (draw_y_sv) + y;
+
+        if (draw_x + w < 0 || draw_x >= SvNV (draw_w_sv)
+         || draw_y + h < 0 || draw_y >= SvNV (draw_h_sv))
+          XSRETURN_EMPTY;
+
+        sv_setnv (draw_x_sv, draw_x);
+        sv_setnv (draw_y_sv, draw_y);
+
+        glPushMatrix ();
+        glTranslated (x, y, 0);
+
+        if (SvROK (GvSV (hover_gv)) && SvRV (GvSV (hover_gv)) == (SV *)hv)
+          {
+            svp = hv_fetch (hv, "can_hover", sizeof ("can_hover") - 1, 0);
+
+            if (svp && SvTRUE (*svp))
+              {
+                glColor4f (1.0f * 0.2f, 0.8f * 0.2f, 0.5f * 0.2f, 0.2f);
+                glEnable (GL_BLEND);
+                glBlendFunc (GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                glBegin (GL_QUADS);
+                glVertex2f (0, 0);
+                glVertex2f (w, 0);
+                glVertex2f (w, h);
+                glVertex2f (0, h);
+                glEnd ();
+                glDisable (GL_BLEND);
+              }
+          }
+#if 0
+        // draw borders, for debugging
+        glPushMatrix ();
+        glColor4f (1., 1., 0., 1.);
+        glTranslatef (.5, .5, 0.);
+        glBegin (GL_LINE_LOOP);
+        glVertex2f (0    , 0);
+        glVertex2f (w - 1, 0);
+        glVertex2f (w - 1, h - 1);
+        glVertex2f (0    , h - 1);
+        glEnd ();
+        glPopMatrix ();
+#endif
+	PUSHMARK (SP);
+        XPUSHs (self);
+        PUTBACK;
+        call_method ("_draw", G_VOID | G_DISCARD);
+        SPAGAIN;
+
+        glPopMatrix ();
+
+        draw_x = draw_x - x; sv_setnv (draw_x_sv, draw_x);
+        draw_y = draw_y - y; sv_setnv (draw_y_sv, draw_y);
+}
 

@@ -22,22 +22,9 @@ sub new {
    my $self = $class->SUPER::new (
       z         => -1,
       can_focus => 1,
-      list      => glGenList,
       tilesize  => 32,
-
-      smooth_matrix => [
-         0.05, 0.13, 0.05,
-         0.13, 0.30, 0.13,
-         0.05, 0.13, 0.05,
-      ],
-
       @_
    );
-
-   $self->{completer} = new CFPlus::MapWidget::Command::
-      command   => $self->{command},
-      tooltip   => "#completer_help",
-   ;
 
    $self
 }
@@ -57,16 +44,16 @@ sub add_command {
    $tooltip = "<big>$data</big>\n\n$tooltip";
    $tooltip =~ s/\s+$//;
 
-   $self->{completer}{command}{$command} = [$data, $tooltip, $widget, $cb, ++$self->{command_id}];
+   $::COMPLETER->{command}{$command} = [$data, $tooltip, $widget, $cb, ++$self->{command_id}];
 }
 
 sub clr_commands {
    my ($self) = @_;
 
-   %{$self->{completer}{command}} = ();
+   %{$::COMPLETER->{command}} = ();
 
-   $self->{completer}->hide
-      if $self->{completer};
+   $::COMPLETER->hide
+      if $::COMPLETER;
 }
 
 sub server_login {
@@ -193,11 +180,7 @@ sub invoke_button_down {
       $y -= CFPlus::floor $::MAP->h * 0.5;
 
       if ($::CONN) {
-         if ($::IN_BUILD_MODE) {
-            $::CONN->buildat ($::IN_BUILD_MODE, $x, $y);
-         } else {
-            $::CONN->lookat ($x, $y)
-         }
+         $::CONN->lookat ($x, $y)
       }
 
    } elsif ($ev->{button} == 2) {
@@ -310,20 +293,24 @@ sub update {
 }
 
 my %DIR = (
-   CFPlus::SDLK_KP5, [0, "stay fire"],
-   CFPlus::SDLK_KP8, [1, "north"],
-   CFPlus::SDLK_KP9, [2, "northeast"],
-   CFPlus::SDLK_KP6, [3, "east"],
-   CFPlus::SDLK_KP3, [4, "southeast"],
-   CFPlus::SDLK_KP2, [5, "south"],
-   CFPlus::SDLK_KP1, [6, "southwest"],
-   CFPlus::SDLK_KP4, [7, "west"],
-   CFPlus::SDLK_KP7, [8, "northwest"],
+   ( "," . CFPlus::SDLK_KP5  ), [0, "stay fire"],
+   ( "," . CFPlus::SDLK_KP8  ), [1, "north"],
+   ( "," . CFPlus::SDLK_KP9  ), [2, "northeast"],
+   ( "," . CFPlus::SDLK_KP6  ), [3, "east"],
+   ( "," . CFPlus::SDLK_KP3  ), [4, "southeast"],
+   ( "," . CFPlus::SDLK_KP2  ), [5, "south"],
+   ( "," . CFPlus::SDLK_KP1  ), [6, "southwest"],
+   ( "," . CFPlus::SDLK_KP4  ), [7, "west"],
+   ( "," . CFPlus::SDLK_KP7  ), [8, "northwest"],
 
-   CFPlus::SDLK_UP,    [1, "north"],
-   CFPlus::SDLK_RIGHT, [3, "east"],
-   CFPlus::SDLK_DOWN,  [5, "south"],
-   CFPlus::SDLK_LEFT,  [7, "west"],
+   ( "," . CFPlus::SDLK_UP   ), [1, "north"],
+   ("1," . CFPlus::SDLK_UP   ), [2, "northeast"],
+   ( "," . CFPlus::SDLK_RIGHT), [3, "east"],
+   ("1," . CFPlus::SDLK_RIGHT), [4, "southeast"],
+   ( "," . CFPlus::SDLK_DOWN ), [5, "south"],
+   ("1," . CFPlus::SDLK_DOWN ), [6, "southwest"],
+   ( "," . CFPlus::SDLK_LEFT ), [7, "west"],
+   ("1," . CFPlus::SDLK_LEFT ), [8, "northwest"],
 );
 
 sub invoke_key_down {
@@ -335,68 +322,24 @@ sub invoke_key_down {
 
    $mod &= CFPlus::KMOD_CTRL | CFPlus::KMOD_ALT | CFPlus::KMOD_SHIFT;
 
-   if ($sym == 9) {
-      ($mod & CFPlus::KMOD_SHIFT ? $::CONSOLE->{window} : $::PL_WINDOW)->toggle_visibility;
-   } elsif ($sym == CFPlus::SDLK_F1 && !$mod) {
-      $::HELP_WINDOW->toggle_visibility;
-   } elsif ($sym == CFPlus::SDLK_F2 && !$mod) {
-      ::toggle_player_page ($::STATS_PAGE);
-   } elsif ($sym == CFPlus::SDLK_F3 && !$mod) {
-      ::toggle_player_page ($::SKILL_PAGE);
-   } elsif ($sym == CFPlus::SDLK_F4 && !$mod) {
-      ::toggle_player_page ($::SPELL_PAGE);
-   } elsif ($sym == CFPlus::SDLK_F5 && !$mod) {
-      ::toggle_player_page ($::INVENTORY_PAGE);
-   } elsif ($sym == CFPlus::SDLK_F9 && !$mod) {
-      $::SETUP_DIALOG->toggle_visibility;
-   } elsif (!$::CONN) {
-      return 0; # bindings further down need a valid connection
-
-   } elsif ($uni == ord ",") {
-      $::CONN->user_send ("take");
-   } elsif ($uni == ord " ") {
-      $::CONN->user_send ("apply");
-   } elsif ($uni == 13) {
-      $::CONN->user_send ("examine");
-   } elsif ($uni == ord ".") {
-      $::CONN->user_send ($self->{completer}{last_command})
-         if exists $self->{completer}{last_command};
-   } elsif (my @macros = CFPlus::Macro::match_event $ev) {
-      $::CONN->macro_send ($_) for @macros;
-   } elsif (($sym == CFPlus::SDLK_KP_PLUS  && !$mod) || $uni == ord "+") {
-      $::CONN->user_send ("rotateshoottype +");
-   } elsif (($sym == CFPlus::SDLK_KP_MINUS && !$mod) || $uni == ord "-") {
-      $::CONN->user_send ("rotateshoottype -");
-   } elsif ($uni == ord '!') {
-      $self->{completer}->set_prefix ("shout ");
-      $self->{completer}->show;
-   } elsif ($uni == ord '"') {
-      $self->{completer}->set_prefix ("$::CFG->{say_command} ");
-      $self->{completer}->show;
-   } elsif ($uni == ord "'") {
-      $self->{completer}->set_prefix ("");
-      $self->{completer}->show;
-   } elsif (exists $DIR{$sym}) {
+   if ($::CONN && (my $dir = $DIR{(!!($mod & CFPlus::KMOD_ALT)) . ",$sym"})) {
       if ($mod & CFPlus::KMOD_SHIFT) {
          $self->{shft}++;
-         if ($DIR{$sym}[0] != $self->{fire_dir}) {
-            $::CONN->user_send ("fire $DIR{$sym}[0]");
+         if ($dir->[0] != $self->{fire_dir}) {
+            $::CONN->user_send ("fire $dir->[0]");
          }
          $self->{fire_dir} = $DIR{$sym}[0];
       } elsif ($mod & CFPlus::KMOD_CTRL) {
          $self->{ctrl}++;
-         $::CONN->user_send ("run $DIR{$sym}[0]");
+         $::CONN->user_send ("run $dir->[0]");
       } else {
-         $::CONN->user_send ("$DIR{$sym}[1]");
+         $::CONN->user_send ("$dir->[1]");
       }
-   } elsif ((ord 'a') <= $uni && $uni <= (ord 'z')) {
-      $self->{completer}->inject_key_down ($ev);
-      $self->{completer}->show;
-   } else {
-      return 0;
+
+      return 1;
    }
 
-   1
+   0
 }
 
 sub invoke_key_up {
@@ -432,6 +375,14 @@ sub invoke_key_up {
    $res
 }
 
+sub invoke_visibility_change {
+   my ($self) = @_;
+
+   $self->refresh_hook;
+
+   0
+}
+
 sub set_magicmap {
    my ($self, $w, $h, $x, $y, $data) = @_;
 
@@ -443,101 +394,101 @@ sub set_magicmap {
    $self->update;
 }
 
+sub refresh_hook {
+   my ($self) = @_;
+
+   if ($::MAP && $::CONN) {
+      if (delete $self->{need_update}) {
+         my $tilesize = $self->{ctilesize} = (int $self->{tilesize} * $::CFG->{map_scale}) || 1;
+
+         my $sw = $self->{sw} = 1 + CFPlus::ceil $self->{w} / $tilesize;
+         my $sh = $self->{sh} = 1 + CFPlus::ceil $self->{h} / $tilesize;
+
+         my $sx = CFPlus::ceil $::CFG->{map_shift_x} / $tilesize;
+         my $sy = CFPlus::ceil $::CFG->{map_shift_y} / $tilesize;
+
+         my $sx0 = $self->{sx0} = $::CFG->{map_shift_x} - $sx * $tilesize;
+         my $sy0 = $self->{sy0} = $::CFG->{map_shift_y} - $sy * $tilesize;
+
+         my $dx = $self->{dx} = CFPlus::ceil 0.5 * ($::MAP->w - $sw) - $sx;
+         my $dy = $self->{dy} = CFPlus::ceil 0.5 * ($::MAP->h - $sh) - $sy;
+
+         if ($::CFG->{fow_enable}) {
+            my ($w, $h, $data) = $::MAP->fow_texture ($dx, $dy, $sw, $sh);
+
+            $self->{fow_texture} = new CFPlus::Texture
+               w              => $w,
+               h              => $h,
+               data           => $data,
+               internalformat => GL_ALPHA,
+               format         => GL_ALPHA;
+         } else {
+            delete $self->{fow_texture};
+         }
+
+         glNewList ($self->{list} ||= glGenList);
+
+         glPushMatrix;
+         glTranslate $sx0, $sy0;
+         glScale $::CFG->{map_scale}, $::CFG->{map_scale};
+
+         $::MAP->draw ($dx, $dy, $sw, $sh, $self->{tilesize});
+
+         glScale $self->{tilesize}, $self->{tilesize};
+
+         if (my $tex = $self->{fow_texture}) {
+            glPushMatrix;
+            glScale 1/3, 1/3;
+            glEnable GL_TEXTURE_2D;
+            glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE;
+
+            glColor +($::CFG->{fow_intensity}) x 3, 0.9;
+            $self->{fow_texture}->draw_quad_alpha (0, 0);
+
+            glDisable GL_TEXTURE_2D;
+            glPopMatrix;
+         }
+
+         if ($self->{magicmap}) {
+            my ($x, $y, $w, $h, $data) = @{ $self->{magicmap} };
+
+            $x += $::MAP->ox + $self->{dx};
+            $y += $::MAP->oy + $self->{dy};
+
+            glTranslate - $x - 1, - $y - 1;
+            glBindTexture GL_TEXTURE_2D, $magicmap_tex->{name};
+            $::MAP->draw_magicmap ($x, $y, $w, $h, $data);
+         }
+
+         glPopMatrix;
+         glEndList;
+      }
+   } else {
+      glDeleteList delete $self->{list}
+         if $self->{list};
+   }
+}
+
 sub draw {
    my ($self) = @_;
 
-   return unless $::MAP;
+   $self->{root}->on_post_alloc (prepare => sub { $self->refresh_hook });
+
+   return unless $self->{list};
 
    my $focused = $CFPlus::UI::FOCUS == $self
-                 || $CFPlus::UI::FOCUS == $self->{completer}{entry};
+                 || $CFPlus::UI::FOCUS == $::COMPLETER->{entry};
 
    return
       unless $focused || !$::FAST;
-
-   if (delete $self->{need_update}) {
-      my $tilesize = $self->{ctilesize} = (int $self->{tilesize} * $::CFG->{map_scale}) || 1;
-
-      my $sw = $self->{sw} = 1 + CFPlus::ceil $self->{w} / $tilesize;
-      my $sh = $self->{sh} = 1 + CFPlus::ceil $self->{h} / $tilesize;
-
-      my $sx = CFPlus::ceil $::CFG->{map_shift_x} / $tilesize;
-      my $sy = CFPlus::ceil $::CFG->{map_shift_y} / $tilesize;
-
-      my $sx0 = $self->{sx0} = $::CFG->{map_shift_x} - $sx * $tilesize;
-      my $sy0 = $self->{sy0} = $::CFG->{map_shift_y} - $sy * $tilesize;
-
-      my $dx = $self->{dx} = CFPlus::ceil 0.5 * ($::MAP->w - $sw) - $sx;
-      my $dy = $self->{dy} = CFPlus::ceil 0.5 * ($::MAP->h - $sh) - $sy;
-
-      if ($::CFG->{fow_enable}) {
-         my ($w, $h, $data) = $::MAP->fow_texture ($dx, $dy, $sw, $sh);
-
-         if ($::CFG->{fow_smooth} && $CFPlus::OpenGL::GL_VERSION >= 1.2) { # smooth fog of war
-            glConvolutionParameter (GL_CONVOLUTION_2D, GL_CONVOLUTION_BORDER_MODE, GL_CONSTANT_BORDER);
-            glConvolutionFilter2D (
-               GL_CONVOLUTION_2D,
-               GL_ALPHA,
-               3, 3,
-               GL_ALPHA, GL_FLOAT,
-               (pack "f*", @{ $self->{smooth_matrix} }),
-            );
-            glEnable GL_CONVOLUTION_2D;
-         }
-
-         $self->{fow_texture} = new CFPlus::Texture
-            w              => $w,
-            h              => $h,
-            data           => $data,
-            internalformat => GL_ALPHA,
-            format         => GL_ALPHA;
-
-         glDisable GL_CONVOLUTION_2D if $::CFG->{fow_smooth};
-      } else {
-         delete $self->{fow_texture};
-      }
-
-      glNewList $self->{list};
-
-      glPushMatrix;
-      glTranslate $sx0, $sy0;
-      glScale $::CFG->{map_scale}, $::CFG->{map_scale};
-
-      $::MAP->draw ($dx, $dy, $sw, $sh, $self->{tilesize});
-
-      glScale $self->{tilesize}, $self->{tilesize};
-
-      if (my $tex = $self->{fow_texture}) {
-         glEnable GL_TEXTURE_2D;
-         glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE;
-
-         glColor +($::CFG->{fow_intensity}) x 3, 0.9;
-         $self->{fow_texture}->draw_quad_alpha (0, 0);
-
-         glDisable GL_TEXTURE_2D;
-      }
-
-      if ($self->{magicmap}) {
-         my ($x, $y, $w, $h, $data) = @{ $self->{magicmap} };
-
-         $x += $::MAP->ox + $self->{dx};
-         $y += $::MAP->oy + $self->{dy};
-
-         glTranslate - $x - 1, - $y - 1;
-         glBindTexture GL_TEXTURE_2D, $magicmap_tex->{name};
-         $::MAP->draw_magicmap ($x, $y, $w, $h, $data);
-      }
-
-      glPopMatrix;
-      glEndList;
-   }
 
    glCallList $self->{list};
 
    # TNT2 emulates logops in software (or worse :)
    unless ($focused) {
-      glColor 0.4, 0.2, 0.2, 0.6;
+      glColor_premultiply 0, 0, 1, 0.25;
       glEnable GL_BLEND;
-      glBlendFunc GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA;
+      glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
       glBegin GL_QUADS;
       glVertex 0, 0;
       glVertex 0, $::HEIGHT;
@@ -567,7 +518,52 @@ use Time::HiRes qw(time);
 use CFPlus::OpenGL;
 
 sub size_request {
-   ($::HEIGHT * 0.25, $::HEIGHT * 0.25)
+   ($::HEIGHT * 0.2, $::HEIGHT * 0.2)
+}
+
+sub refresh_hook {
+   my ($self) = @_;
+
+   if ($::MAP && $self->{texture_atime} < time) {
+      my ($w, $h) = @$self{qw(w h)};
+
+      my $sw = int $::WIDTH  / ($::MAPWIDGET->{tilesize} * $::CFG->{map_scale}) + 0.99;
+      my $sh = int $::HEIGHT / ($::MAPWIDGET->{tilesize} * $::CFG->{map_scale}) + 0.99;
+
+      my $ox = 0.5 * ($w - $sw);
+      my $oy = 0.5 * ($h - $sh);
+
+      my $sx = int $::CFG->{map_shift_x} / $::MAPWIDGET->{tilesize};
+      my $sy = int $::CFG->{map_shift_y} / $::MAPWIDGET->{tilesize};
+
+      #TODO: map scale is completely borked
+
+      my $x0 = int $ox - $sx + 0.5;
+      my $y0 = int $oy - $sy + 0.5;
+
+      $self->{sw} = $sw;
+      $self->{sh} = $sh;
+
+      $self->{x0} = $x0;
+      $self->{y0} = $y0;
+
+      $self->{texture_atime} = time + 1/3;
+
+      $self->{texture} =
+         new CFPlus::Texture
+            w    => $w,
+            h    => $h,
+            data => $::MAP->mapmap (-$ox, -$oy, $w, $h),
+            type => $CFPlus::GL_VERSION >= 1.2 ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE;
+   }
+}
+
+sub invoke_visibility_change {
+   my ($self) = @_;
+
+   $self->refresh_hook;
+
+   0
 }
 
 sub invoke_size_allocate {
@@ -588,34 +584,14 @@ sub update {
 sub _draw {
    my ($self) = @_;
 
-   $::MAP or return;
+   $self->{root}->on_post_alloc (texture => sub { $self->refresh_hook });
 
-   my ($w, $h) = @$self{qw(w h)};
-
-   my $sw = int $::WIDTH  / ($::MAPWIDGET->{tilesize} * $::CFG->{map_scale}) + 0.99;
-   my $sh = int $::HEIGHT / ($::MAPWIDGET->{tilesize} * $::CFG->{map_scale}) + 0.99;
-
-   my $sx = int $::CFG->{map_shift_x} / $::MAPWIDGET->{tilesize};
-   my $sy = int $::CFG->{map_shift_y} / $::MAPWIDGET->{tilesize};
-
-   my $ox = 0.5 * ($w - $sw);
-   my $oy = 0.5 * ($h - $sh);
+   $self->{texture} or return;
 
    glEnable GL_BLEND;
    glBlendFunc GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA;
    glEnable GL_TEXTURE_2D;
    glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE;
-
-   if ($self->{texture_atime} < time) {
-      $self->{texture_atime} = time + 1/3;
-
-      $self->{texture} =
-         new CFPlus::Texture
-            w    => $w,
-            h    => $h,
-            data => $::MAP->mapmap (-$ox, -$oy, $w, $h),
-            type => $CFPlus::GL_VERSION >= 1.2 ? GL_UNSIGNED_INT_8_8_8_8_REV : GL_UNSIGNED_BYTE;
-   }
 
    $self->{texture}->draw_quad (0, 0);
 
@@ -623,17 +599,12 @@ sub _draw {
 
    glTranslate 0.375, 0.375;
 
-   #TODO: map scale is completely borked
-
-   my $x0 = int $ox - $sx + 0.5;
-   my $y0 = int $oy - $sy + 0.5;
-
    glColor 1, 1, 0, 1;
    glBegin GL_LINE_LOOP;
-   glVertex $x0      , $y0      ;
-   glVertex $x0      , $y0 + $sh;
-   glVertex $x0 + $sw, $y0 + $sh;
-   glVertex $x0 + $sw, $y0      ;
+   glVertex $self->{x0}              , $self->{y0}              ;
+   glVertex $self->{x0}              , $self->{y0} + $self->{sh};
+   glVertex $self->{x0} + $self->{sw}, $self->{y0} + $self->{sh};
+   glVertex $self->{x0} + $self->{sw}, $self->{y0}              ;
    glEnd;
    
    glDisable GL_BLEND;

@@ -1,4 +1,5 @@
 // all these must be powers of two
+// width and height better be <=256 as we use bytes in the rendercache
 #define TC_WIDTH  256
 #define TC_HEIGHT 256
 #define TC_ROUND  4

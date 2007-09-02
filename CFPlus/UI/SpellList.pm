@@ -38,11 +38,15 @@ sub rebuild_spell_list {
 
       return unless $::CONN;
 
-      $self->add (1, 0, new CFPlus::UI::Label text => "Spell Name", @TOOLTIP_NAME);
-      $self->add (2, 0, new CFPlus::UI::Label text => "Skill", @TOOLTIP_SKILL);
-      $self->add (3, 0, new CFPlus::UI::Label text => "Lvl"  , @TOOLTIP_LVL);
-      $self->add (4, 0, new CFPlus::UI::Label text => "Sp/Gp", @TOOLTIP_SP);
-      $self->add (5, 0, new CFPlus::UI::Label text => "Dmg"  , @TOOLTIP_DMG);
+      my @add;
+
+      push @add,
+         1, 0, (new CFPlus::UI::Label text => "Spell Name", @TOOLTIP_NAME),
+         2, 0, (new CFPlus::UI::Label text => "Skill", @TOOLTIP_SKILL),
+         3, 0, (new CFPlus::UI::Label text => "Lvl"  , @TOOLTIP_LVL),
+         4, 0, (new CFPlus::UI::Label text => "Sp/Gp", @TOOLTIP_SP),
+         5, 0, (new CFPlus::UI::Label text => "Dmg"  , @TOOLTIP_DMG),
+      ;
 
       my $row = 0;
 
@@ -76,30 +80,34 @@ sub rebuild_spell_list {
          my $tooltip = (CFPlus::asxml $spell->{message}) . $TOOLTIP_ALL;
 
          #TODO: add path info to tooltip
-         #$self->add (6, $row, new CFPlus::UI::Label text => $spell->{path});
+         #push @add, 6, $row, new CFPlus::UI::Label text => $spell->{path};
 
-         $self->add (0, $row, new CFPlus::UI::Face
+         push @add, 0, $row, new CFPlus::UI::Face
             face       => $spell->{face},
             can_hover  => 1,
             can_events => 1,
             tooltip    => $tooltip,
             on_button_down => $spell_cb,
-         );
+         ;
 
-         $self->add (1, $row, new CFPlus::UI::Label
+         push @add, 1, $row, new CFPlus::UI::Label
             expand     => 1,
             text       => $spell->{name},
             can_hover  => 1,
             can_events => 1,
             tooltip    => $tooltip,
             on_button_down => $spell_cb,
-         );
+         ;
 
-         $self->add (2, $row, new CFPlus::UI::Label text => $::CONN->{skill_info}{$spell->{skill}}, @TOOLTIP_SKILL);
-         $self->add (3, $row, new CFPlus::UI::Label text => $spell->{level}, @TOOLTIP_LVL);
-         $self->add (4, $row, new CFPlus::UI::Label text => $spell->{mana} || $spell->{grace}, @TOOLTIP_SP);
-         $self->add (5, $row, new CFPlus::UI::Label text => $spell->{damage}, @TOOLTIP_DMG);
+         push @add,
+            2, $row, (new CFPlus::UI::Label text => $::CONN->{skill_info}{$spell->{skill}}, @TOOLTIP_SKILL),
+            3, $row, (new CFPlus::UI::Label text => $spell->{level}, @TOOLTIP_LVL),
+            4, $row, (new CFPlus::UI::Label text => $spell->{mana} || $spell->{grace}, @TOOLTIP_SP),
+            5, $row, (new CFPlus::UI::Label text => $spell->{damage}, @TOOLTIP_DMG),
+         ;
       }
+
+      $self->add_at (@add);
    });
 }
 

@@ -38,7 +38,9 @@ struct _PangoOpenGLRenderer
   PangoRenderer parent_instance;
   float r, g, b, a; // modulate
   int flags;
-  GLuint curtex; // current texture
+  rc_t *rc; // rendercache
+  rc_key_t key; // current render key
+  rc_array_t *arr;
 };
 
 G_DEFINE_TYPE (PangoOpenGLRenderer, pango_opengl_renderer, PANGO_TYPE_RENDERER)
@@ -164,7 +166,6 @@ draw_glyph (PangoRenderer *renderer_, PangoFont *font, PangoGlyph glyph, double 
 {
   PangoOpenGLRenderer *renderer = PANGO_OPENGL_RENDERER (renderer_);
   glyph_info *g;
-  float x1, y1, x2, y2;
 
   if (glyph & PANGO_GLYPH_UNKNOWN_FLAG)
     {
@@ -191,9 +192,6 @@ draw_glyph (PangoRenderer *renderer_, PangoFont *font, PangoGlyph glyph, double 
           _pango_opengl_font_set_cache_glyph_data (font, glyph, g);
         }
 
-      if (renderer->curtex)
-        glEnd ();
-
       tc_get (&g->tex, bm.width, bm.height);
 
       g->left = bm.left;
@@ -205,34 +203,18 @@ draw_glyph (PangoRenderer *renderer_, PangoFont *font, PangoGlyph glyph, double 
       glTexSubImage2D (GL_TEXTURE_2D, 0, g->tex.x, g->tex.y, bm.width, bm.height, GL_ALPHA, GL_UNSIGNED_BYTE, bm.bitmap);
       glPixelStorei (GL_UNPACK_ROW_LENGTH, 0);
       glPixelStorei (GL_UNPACK_ALIGNMENT, 4);
-
-      renderer->curtex = g->tex.name;
-      glBegin (GL_QUADS);
     }
 
   x += g->left;
   y -= g->top;
 
-  x1 = g->tex.x * (1. / TC_WIDTH );
-  y1 = g->tex.y * (1. / TC_HEIGHT);
-  x2 = g->tex.w * (1. / TC_WIDTH ) + x1;
-  y2 = g->tex.h * (1. / TC_HEIGHT) + y1;
-
-  if (g->tex.name != renderer->curtex)
+  if (g->tex.name != renderer->key.texname)
     {
-      if (renderer->curtex)
-        glEnd ();
-
-      glBindTexture (GL_TEXTURE_2D, g->tex.name);
-      renderer->curtex = g->tex.name;
-
-      glBegin (GL_QUADS);
+      renderer->key.texname = g->tex.name;
+      renderer->arr = rc_array (renderer->rc, &renderer->key);
     }
 
-  glTexCoord2f (x1, y1); glVertex2i (x           , y           );
-  glTexCoord2f (x2, y1); glVertex2i (x + g->tex.w, y           );
-  glTexCoord2f (x2, y2); glVertex2i (x + g->tex.w, y + g->tex.h);
-  glTexCoord2f (x1, y2); glVertex2i (x           , y + g->tex.h);
+  rc_glyph (renderer->arr, g->tex.x, g->tex.y, g->tex.w, g->tex.h, x, y);
 }
 
 static void
@@ -246,27 +228,24 @@ draw_trapezoid (PangoRenderer   *renderer_,
 		double           x22)
 {
   PangoOpenGLRenderer *renderer = (PangoOpenGLRenderer *)renderer_;
+  rc_key_t key = renderer->key;
+  rc_array_t *arr;
 
-  if (renderer->curtex)
-    {
-      glEnd ();
-      renderer->curtex = 0;
-    }
+  key.mode    = GL_QUADS;
+  key.format  = GL_V2F;
+  key.texname = 0;
 
-  glDisable (GL_TEXTURE_2D);
+  arr = rc_array (renderer->rc, &key);
 
-  glBegin (GL_QUADS);
-  glVertex2d (x11, y1);
-  glVertex2d (x21, y1);
-  glVertex2d (x22, y2);
-  glVertex2d (x12, y2);
-  glEnd ();
-
-  glEnable (GL_TEXTURE_2D);
+  rc_v2f (arr, x11, y1);
+  rc_v2f (arr, x21, y1);
+  rc_v2f (arr, x22, y2);
+  rc_v2f (arr, x12, y2);
 }
 
 void 
 pango_opengl_render_layout_subpixel (PangoLayout *layout,
+                                     rc_t *rc,
                                      int x, int y,
                                      float r, float g, float b, float a,
                                      int flags)
@@ -274,32 +253,40 @@ pango_opengl_render_layout_subpixel (PangoLayout *layout,
   PangoContext *context;
   PangoFontMap *fontmap;
   PangoRenderer *renderer;
+  PangoOpenGLRenderer *gl;
 
   context = pango_layout_get_context (layout);
   fontmap = pango_context_get_font_map (context);
   renderer = _pango_opengl_font_map_get_renderer (PANGO_OPENGL_FONT_MAP (fontmap));
+  gl = PANGO_OPENGL_RENDERER (renderer);
 
-  PANGO_OPENGL_RENDERER (renderer)->r = r;
-  PANGO_OPENGL_RENDERER (renderer)->g = g;
-  PANGO_OPENGL_RENDERER (renderer)->b = b;
-  PANGO_OPENGL_RENDERER (renderer)->a = a;
-  PANGO_OPENGL_RENDERER (renderer)->flags = flags;
+  gl->rc = rc;
+  gl->r = r;
+  gl->g = g;
+  gl->b = b;
+  gl->a = a;
+  gl->flags = flags;
   
   pango_renderer_draw_layout (renderer, layout, x, y);
 }
 
 void 
 pango_opengl_render_layout (PangoLayout *layout,
+                            rc_t *rc,
 			    int x, int y,
                             float r, float g, float b, float a,
                             int flags)
 {
-  pango_opengl_render_layout_subpixel (layout, x * PANGO_SCALE, y * PANGO_SCALE, r, g, b, a, flags);
+  pango_opengl_render_layout_subpixel (
+     layout, rc, x * PANGO_SCALE, y * PANGO_SCALE, r, g, b, a, flags
+  );
 }
 
 static void
 pango_opengl_renderer_init (PangoOpenGLRenderer *renderer)
 {
+  memset (&renderer->key, 0, sizeof (rc_key_t));
+
   renderer->r = 1.;
   renderer->g = 1.;
   renderer->b = 1.;
@@ -309,13 +296,17 @@ pango_opengl_renderer_init (PangoOpenGLRenderer *renderer)
 static void
 prepare_run (PangoRenderer *renderer, PangoLayoutRun *run)
 {
-  PangoOpenGLRenderer *glrenderer = (PangoOpenGLRenderer *)renderer;
+  PangoOpenGLRenderer *gl = (PangoOpenGLRenderer *)renderer;
   PangoColor *fg = 0;
   GSList *l;
   unsigned char r, g, b, a;
 
   renderer->underline = PANGO_UNDERLINE_NONE;
   renderer->strikethrough = FALSE;
+
+  gl->key.mode    = GL_QUADS;
+  gl->key.format  = 0; // glyphs
+  gl->key.texname = 0;
 
   for (l = run->item->analysis.extra_attrs; l; l = l->next)
     {
@@ -348,50 +339,36 @@ prepare_run (PangoRenderer *renderer, PangoLayoutRun *run)
     }
   else 
     {
-      r = glrenderer->r * 255.f;
-      g = glrenderer->g * 255.f;
-      b = glrenderer->b * 255.f;
+      r = gl->r * 255.f;
+      g = gl->g * 255.f;
+      b = gl->b * 255.f;
     }
 
-  a = glrenderer->a * 255.f;
+  a = gl->a * 255.f;
 
-  if (glrenderer->flags & FLAG_INVERSE)
+  if (gl->flags & FLAG_INVERSE)
     {
       r ^= 0xffU;
       g ^= 0xffU;
       b ^= 0xffU;
     } 
 
-  glColor4ub (r, g, b, a);
+  gl->key.r = r;
+  gl->key.g = g;
+  gl->key.b = b;
+  gl->key.a = a;
 }
 
 static void
 draw_begin (PangoRenderer *renderer_)
 {
   PangoOpenGLRenderer *renderer = (PangoOpenGLRenderer *)renderer_;
-
-  renderer->curtex = 0;
-
-  glEnable (GL_TEXTURE_2D);
-  glTexEnvi (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-  glEnable (GL_BLEND);
-  gl_BlendFuncSeparate (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
-                        GL_ONE      , GL_ONE_MINUS_SRC_ALPHA);
-  glEnable (GL_ALPHA_TEST);
-  glAlphaFunc (GL_GREATER, 0.01f);
 }
 
 static void
 draw_end (PangoRenderer *renderer_)
 {
   PangoOpenGLRenderer *renderer = (PangoOpenGLRenderer *)renderer_;
-
-  if (renderer->curtex)
-    glEnd ();
-
-  glDisable (GL_ALPHA_TEST);
-  glDisable (GL_BLEND);
-  glDisable (GL_TEXTURE_2D);
 }
 
 static void

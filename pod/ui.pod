@@ -86,8 +86,14 @@ level starts at a value of 0 and may range up beyond 100.
 
 =head2 X<stat_ranged>
 
-B<Ranged attack> - how you attack when you press shift-cursor (spell,
-skill, weapon etc).
+B<Attack Slots> - how you attack when you fire (shift-direction, spell,
+skill etc.) - your range slot, or you walk/run into something - your
+combat slot. You can apply both a ranged attack weapon (such as a spell,
+horn, rod, bow etc.) and a combat attack weapon (such as a sword, knife
+etc.) at the same time, but only one of them - marked with a C<*> - will
+be wielded at any one time. You can quickly toggle between the two slots
+by using C<KP-Plus>, but usually the server will automatically switch
+between the two slots as needed.
 
 =head2 X<stat_Str>
 
@@ -122,8 +128,9 @@ leveling up.
 
 =head2 X<stat_Cha>
 
-B<Charisma>, how well you are received by NPCs. Affects buying and selling
-prices in shops.
+B<Charisma>, how well you are received by NPCs. Affects buying and
+selling prices in shops, the L<oratory|skill_description/oratory> and
+L<singing|skill_description/singing> skills and a few other things.
 
 =head2 X<stat_Wc>
 
@@ -153,17 +160,18 @@ physical resistance.
 
 =head2 X<stat_Spd>
 
-B<Speed>, how fast you can move. The value of speed may range between
-nearly 0 ("very slow") to higher than 5 ("lightning fast"). Base speed
-is determined from the Dex and modified downward proportionally by the
-amount of weight carried which exceeds the Max Carry limit. The armour
-worn also sets the upper limit on speed.
+B<Speed>, how fast you can move. The value roughly means how many actions
+per second you can make. It may range between nearly 0 ("very slow") to
+higher than 5 ("lightning fast"). Base speed is determined from the Dex
+and modified downward proportionally by the amount of weight carried which
+exceeds the Max Carry limit. The armour worn also sets the upper limit on
+speed.
 
 =head2 X<stat_WSp>
 
-B<Weapon Speed>, how many attacks you may make per unit of time
-(0.120s). Higher values indicate faster attack speed. Current weapon and
-Dex effect the value of weapon speed.
+B<Weapon Speed>, how many attacks you may make per second when combatting.
+Higher values indicate faster attack speed. Current weapon and Dex effect
+the value of weapon speed.
 
 =head2 X<npc_message_entry>
 

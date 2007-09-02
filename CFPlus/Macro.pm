@@ -2,20 +2,55 @@ package CFPlus::Macro;
 
 use strict;
 
+use List::Util ();
 use CFPlus::UI;
 
 our $REFRESH_MACRO_LIST;
+
+our %DEFAULT_KEYMAP = (
+   (map +("($_)" => "!completer $_"), "a" .. "z"),
+   "(!)"       => "!completer shout ",
+   "(\")"      => "!completer say ",
+   "(')"       => "!completer",
+
+   "LShift-tab" => "!toggle-messagewindow",
+   "RShift-tab" => "!toggle-messagewindow",
+   "tab"        => "!toggle-playerbook",
+   "f1"         => "!toggle-help",
+   "f2"         => "!toggle-stats",
+   "f3"         => "!toggle-skills",
+   "f4"         => "!toggle-spells",
+   "f5"         => "!toggle-inventory",
+   "f9"         => "!toggle-setup",
+   (map +("LAlt-$_" => "!switch-tab $_"), 0..9),
+   (map +("RAlt-$_" => "!switch-tab $_"), 0..9),
+   "return"     => "!activate-chat",
+   "."          => "!repeat-command",
+
+   ","          => "take",
+   "space"      => "apply",
+   "enter"	=> "examine",
+   "[+]"        => "rotateshoottype +",
+   "[-]"        => "rotateshoottype -",
+   "LAlt-s"	=> "ready_skill find traps",
+   "LAlt-d"	=> "ready_skill disarm traps",
+   "LAlt-p"	=> "ready_skill praying",
+);
 
 # allowed modifiers
 our %MODIFIER = (
    "LShift" => CFPlus::KMOD_LSHIFT,
    "RShift" => CFPlus::KMOD_RSHIFT,
+#   "Shift"  => CFPlus::KMOD_LSHIFT | CFPlus::KMOD_RSHIFT,
    "LCtrl"  => CFPlus::KMOD_LCTRL,
    "RCtrl"  => CFPlus::KMOD_RCTRL,
+#   "Ctrl"   => CFPlus::KMOD_LCTRL | CFPlus::KMOD_RCTRL,
    "LAlt"   => CFPlus::KMOD_LALT,
    "RAlt"   => CFPlus::KMOD_RALT,
+#   "Alt"    => CFPlus::KMOD_LALT | CFPlus::KMOD_RALT,
    "LMeta"  => CFPlus::KMOD_LMETA,
    "RMeta"  => CFPlus::KMOD_RMETA,
+#   "Meta"   => CFPlus::KMOD_LMETA | CFPlus::KMOD_RMETA,
 );
 
 # allowed modifiers
@@ -42,10 +77,60 @@ our @DIRECT_KEYS = (
    CFPlus::SDLK_F15,
 );
 
+our %MACRO_FUNCTION = (
+   "toggle-messagewindow" => sub { $::MESSAGE_WINDOW->toggle_visibility },
+   "toggle-playerbook"    => sub { $::PL_WINDOW->toggle_visibility },
+   "toggle-help"          => sub { $::HELP_WINDOW->toggle_visibility },
+   "toggle-stats"         => sub { ::toggle_player_page ($::STATS_PAGE) },
+   "toggle-skills"        => sub { ::toggle_player_page ($::SKILL_PAGE) },
+   "toggle-spells"        => sub { ::toggle_player_page ($::SPELL_PAGE) },
+   "toggle-inventory"     => sub { ::toggle_player_page ($::INVENTORY_PAGE) },
+   "toggle-pickup"        => sub { ::toggle_player_page ($::PICKUP_PAGE) },
+   "toggle-setup"         => sub { $::SETUP_DIALOG->toggle_visibility },
+   "toggle-setup"         => sub { $::SETUP_DIALOG->toggle_visibility },
+   "switch-tab"           => sub { $::MESSAGE_WINDOW->user_switch_to_page (0 + shift) },
+   "activate-chat"        => sub { $::MESSAGE_WINDOW->activate_current },
+   "repeat-command"       => sub {
+      $::CONN->user_send ($::COMPLETER->{last_command})
+         if $::CONN && exists $::COMPLETER->{last_command};
+   },
+   "completer"            => sub {
+      if ($::CONN) {
+         $::COMPLETER->set_prefix (shift);
+         $::COMPLETER->show;
+      }
+   },
+);
+
+our $DEFAULT_KEYMAP;
+
+sub init {
+   $DEFAULT_KEYMAP ||= do {
+      my %sym = map +(CFPlus::SDL_GetKeyName $_, $_), CFPlus::SDLK_FIRST .. CFPlus::SDLK_LAST;
+      my $map;
+
+      while (my ($k, $v) = each %DEFAULT_KEYMAP) {
+         if ($k =~ /^\((.)\)$/) {
+            $map->{U}{ord $1} = $v;
+         } else {
+            my @mod = split /-/, $k;
+            my $sym = $sym{pop @mod}
+               or warn "unknown keysym $k\n";
+
+            my $mod = 0; $mod |= $MODIFIER{$_} for @mod;
+
+            $map->{K}[CFPlus::popcount $mod]{$mod}{$sym} = $v;
+         }
+      }
+
+      %DEFAULT_KEYMAP = ();
+      $map
+   };
+}
+
 sub accelkey_to_string($) {
    join "-",
-      (grep $_[0][0] & $MODIFIER{$_},
-         keys %MODIFIER),
+      (grep $_[0][0] & $MODIFIER{$_}, keys %MODIFIER),
       CFPlus::SDL_GetKeyName $_[0][1]
 }
 
@@ -158,18 +243,66 @@ sub trigger_edit {
    $window->show;
 }
 
-# find macro by event
-sub match_event($) {
+sub find_default($) {
    my ($ev) = @_;
 
-   grep {
-      if (my $key = $_->{accelkey}) {
-         $key->[1] == $ev->{sym}
-            && $key->[0] == ($ev->{mod} & $MODIFIER_MASK)
-      } else {
-         0
+   for my $m (reverse grep $_, @{ $DEFAULT_KEYMAP->{K} }) {
+      for (keys %$m) {
+         if ($_ == ($ev->{mod} & $_)) {
+            if (defined (my $cmd = $m->{$_}{$ev->{sym}})) {
+               return $cmd;
+            }
+         }
       }
-   } @{ $::PROFILE->{macro} || [] }
+   }
+
+   if (my $cmd = $DEFAULT_KEYMAP->{U}{$ev->{unicode}}) {
+      return $cmd;
+   }
+
+   ()
+}
+
+# find macro by event
+sub find($) {
+   my ($ev) = @_;
+
+   # try user-defined macros
+   if (my @user =
+      grep {
+         if (my $key = $_->{accelkey}) {
+            $key->[1] == $ev->{sym}
+               && $key->[0] == ($ev->{mod} & $MODIFIER_MASK)
+         } else {
+            0
+         }
+      } @{ $::PROFILE->{macro} || [] }
+   ) {
+      return @user;
+   }
+
+   # now try default keymap
+   if (defined (my $def = find_default $ev)) {
+      return {
+         action => [$def],
+      };
+   }
+
+   ()
+}
+
+sub execute {
+   my ($macro) = @_;
+
+   for (@{ $macro->{action} }) {
+      if (/^\!(\S+)\s?(.*)$/) {
+         $MACRO_FUNCTION{$1}->($2)
+            if exists $MACRO_FUNCTION{$1};
+      } else {
+         $::CONN->send_command ($_)
+            if $::CONN;
+      }
+   }
 }
 
 sub keyboard_setup {
@@ -223,20 +356,20 @@ sub keyboard_setup {
          child => (my $editor = new CFPlus::UI::Table col_expand => [0, 1]),
       );
 
-      $editor->add (0, 1, new CFPlus::UI::Label
+      $editor->add_at (0, 1, new CFPlus::UI::Label
          text    => "Trigger",
          tooltip => $tooltip_trigger,
          can_hover  => 1,
          can_events => 1,
       );
-      $editor->add (0, 2, new CFPlus::UI::Label
+      $editor->add_at (0, 2, new CFPlus::UI::Label
          text    => "Actions",
          tooltip => $tooltip_commands,
          can_hover  => 1,
          can_events => 1,
       );
 
-      $editor->add (1, 2, my $textedit = new CFPlus::UI::TextEdit
+      $editor->add_at (1, 2, my $textedit = new CFPlus::UI::TextEdit
          text    => macro_to_text $macro,
          tooltip => $tooltip_commands,
          on_changed => sub {
@@ -244,7 +377,7 @@ sub keyboard_setup {
          },
       );
 
-      $editor->add (1, 1, my $accel = new CFPlus::UI::Button
+      $editor->add_at (1, 1, my $accel = new CFPlus::UI::Button
          text    => trigger_to_string $macro,
          tooltip => "To change the trigger for a macro, activate this button.",
          on_activate => sub {
@@ -257,7 +390,7 @@ sub keyboard_setup {
       );
 
       my $recording;
-      $editor->add (1, 3, new CFPlus::UI::Button
+      $editor->add_at (1, 3, new CFPlus::UI::Button
          text    => "Start Recording",
          tooltip => "Start/Stop command recording: when recording, "
                   . "actions and commands you invoke are appended to this macro. "
@@ -298,12 +431,12 @@ sub keyboard_setup {
    $REFRESH_MACRO_LIST = $refresh = sub {
       $macrolist->clear;
 
-      $macrolist->add (0, 1, new CFPlus::UI::Label
+      $macrolist->add_at (0, 1, new CFPlus::UI::Label
          text    => "Trigger",
          align   => 0,
          tooltip => $tooltip_trigger . $tooltip_common,
       );
-      $macrolist->add (1, 1, new CFPlus::UI::Label
+      $macrolist->add_at (1, 1, new CFPlus::UI::Label
          text    => "Commands",
          tooltip => $tooltip_commands . $tooltip_common,
       );
@@ -338,7 +471,7 @@ sub keyboard_setup {
             1
          };
 
-         $macrolist->add (0, $y, new CFPlus::UI::Label
+         $macrolist->add_at (0, $y, new CFPlus::UI::Label
             text       => trigger_to_string $macro,
             tooltip    => $tooltip_trigger . $tooltip_common,
             align      => 0,
@@ -347,7 +480,7 @@ sub keyboard_setup {
             on_button_down => $macro_cb,
          );
 
-         $macrolist->add (1, $y, new CFPlus::UI::Label
+         $macrolist->add_at (1, $y, new CFPlus::UI::Label
             text       => (join "; ", @{ $macro->{action} || [] }),
             tooltip    => $tooltip_commands . $tooltip_common,
             expand     => 1,
@@ -383,3 +516,4 @@ sub quick_macro {
    };
 }
 
+1

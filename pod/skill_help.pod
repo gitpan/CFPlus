@@ -234,10 +234,17 @@ terrain (hills, mountains, etc.)
 
 =head2 oratory
 
-You may "recruit" followers. Recruitees must be of lower level, and
-unaggressive to start. Use of this skill may anger the audience. Also,
-"special" monsters are immune to recruitment. Success depends on user's
-L<charisma|stat_Cha> and level.
+You may "recruit" followers targeting them with your B<oratory>
+skill. Recruitees must be unaggressive to start (a good way to pacify
+monsters is the L<singing skill|skill_description/singing>). Use of
+this skill may anger the audience. Also, some monsters are immune to
+recruitment. Success depends on user's level and her L<charisma|stat_Cha>
+vs. the recruitee's L<intelligence|stat_Int> and level.
+
+Kill experience from your followers goes directly to your oratory skill.
+
+Cleaning women and unagggressive low-level monsters (such as the dogs in
+the wizards house in scorn) are good initial targets for this skill.
 
 =head2 praying
 
@@ -278,8 +285,14 @@ direction while this skill is readied.
 
 =head2 singing
 
-You may pacify hostile monsters with this skill. Certain kinds of
-monsters are immune. Success depends on user level and L<charisma|stat_Cha>.
+You may pacify hostile monsters with this area attack skill.  Certain
+kinds of monsters are immune. Success depends on user's level and her
+L<charisma|stat_Cha> vs. the monster's L<intelligence|stat_Int> and level.
+
+Singing is a good companion skill for the L<oratory
+skill|skill_description/oratory>: first you pacify creates using singing,
+then you can orate them, convincing them if your cause. It is a useful
+skill when monsters are overwhelming you, too.
 
 =head2 smithery
 

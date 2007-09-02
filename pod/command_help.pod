@@ -1,4 +1,4 @@
-=head1 Crossfire+ Command ListingX<command>
+=head1 Crossfire TRT Command ListingX<command>
 
 =head2 accept-invitation
 
@@ -177,6 +177,22 @@ will be dropped. A collection of 5 scrolls will not be dropped.
 See also B<dropall> and mouse button control within client for dropping
 objects.
 
+
+=head2 cointoss
+
+Tosses a coin and reports the outcome to you and other players on the same
+map, much like the say command does.
+
+
+=head2 orcknuckle
+
+Throws your orcknuckle set and reports the outcome to you and other
+players on the same map, much like the say command does. Your first
+three orcknuckle throws can report I<beholder>, I<ghost>, I<knight>,
+I<princess>, I<dragon>, while the fourth can additionally roll up to
+I<orc>.
+
+
 =head2 dropall
 
    dropall [type]
@@ -257,6 +273,33 @@ only your party. Even people standing right next to you can't hear it.
 =head2 help
 
 Gives you online help for the command or help topic specified.
+
+=head2 hintmode (show|mark|hide)
+
+   hintmode show|mark|hide
+
+Sets the I<hint mode> to the given value: Throughout the game you can find
+hints that sometimes help you to solve a puzzle or manage a situation
+better than without. You can change the display of these hints with this
+command:
+
+=over 4
+
+=item show
+
+Show the hints (the default mode).
+
+=item mark
+
+Do not show the hints themselves, but notify you when a hint would have
+been available.
+
+=item hide
+
+Hide all hints: You will not be able to tell wether there is a hint
+available or not.
+
+=back
 
 =head2 hiscore
 
@@ -422,7 +465,9 @@ emergency save), at most 20 seconds of gameplay are lost.
 =item Reset: the minimum number of seconds the map will stay as is (will not reset).
 
 Most maps will not reset as long as players are on it, and usually the
-reset counter only starts going down when all players left the map.
+reset counter only starts going down when all players left the map. Some
+maps will never reset in the common sense, these are usually marked with a
+very high number (sucha s C<1e+99>).
 
 =item Path: the name that uniquely identifies the map, can be used for goto etc.
 
@@ -467,16 +512,21 @@ default value is usually less than a second.
 
 See also L<output-sync>.
 
-=head2 output-rate [bytes per second]
+=head2 output-rate
+
+   output-rate [bytes per second]
 
 Show the current setting of the output-rate, or set it to the provided
-value.  The server will try not to send (much) more than this many bytes
+value. The server will try very hard not to send more than this many bytes
 per second to your client. If the rate is exceeded, the server tries to
-hold back less important information (such as new images), to increase
-responsiveness. The server-side default is usually quite high, around
-100000, so if you have a slow link and want to be able to control your
-character even when downloading faces, set this to a lower value, such as
-7000 (for ISDN).
+hold back less important information (such as new images) to increase
+responsiveness.
+
+The server-side default is usually quite high, around 100000. If the
+server is running on a Linux kernel, it will adjust to the actual
+bandwidth available, and output-rate only sets an upper bound. That is,
+the server will automatically set an optimal send rate and adjusting your
+output-rate is not required.
 
 =head2 output-sync
 
@@ -603,27 +653,13 @@ Goldcoins have a value density of 66,
 Density 10 will pickup silver, gold, rings, wands, books, and scrolls.
 Artifacts are also picked up.
 
+
 =head2 prepare
 
 The same as cast. Usage:
 
    prepare <spell>
 
-=head2 X<quests>quests (|finished|.*)
-
-The quests command lists the quests you are doing or have completed.
-
-Parameters are:
-
-=over 4
-
-=item no arguments: displays current quests.
-
-=item B<finished>: displays finished quests;
-
-=item anything else: displays details for quests (finished or not) with name containing the given string.
-
-=back
 
 =head2 quit
 
@@ -632,6 +668,7 @@ without deleting your character, you must use a I<Bed to Reality>. Find a
 bed (probably in a building close to where you entered the game), get on
 top of it, and apply it using B<Tab> ro the B<apply> command.
 
+
 =head2 range
 
 Your range weapon can be one of several weapons, a spell you cast, a
@@ -639,6 +676,7 @@ bow-and-arrow, a rod, or a wand, to name a few.
 
 Your range weapon is fired when you press SHIFT-direction, and will be
 fired in that direction.
+
 
 =head2 ready_skill
 
@@ -650,6 +688,7 @@ readied, some need to be actively used by "firing" them.
 
 If you just want to invoke a skill once, leaving your range slot
 untouched, use L<use_skill> instead.
+
 
 =head2 rename
 
@@ -667,15 +706,6 @@ will be restored.
 
 Note: maximum allowed name length is 127 characters.
 
-=head2 reply
-
-   reply <message>
-
-Similar to tell, but instead of having to supply a username, it replies
-to the last player that sent you a tell. This is a bit racy (e.g. when
-somebody else tells you something while you type and you do not realise
-that), so be careful not to supply confidential information in the
-message.
 
 =head2 resistances
 
@@ -787,6 +817,19 @@ Toggles between sound enabled and disabled. This has no relevance to the
 sound settings of the client, it only governs wether the server will send
 sound effect command to the client and is enabled if the client supports
 sound (i.e. always for cfplus).
+
+=head2 sourcecode
+
+This command displays the means to download the sourcecode (server code,
+maps and archetypes) used to implement this version of the game.
+
+Every player has the right to download and modify the source code of the
+server, as required by both the GNU General Public License and the GNU
+Affero General Public license.
+
+If you modify your version of the server, you will have to provide a means
+to download the modified sources (and resources) via this command. If you
+run an unmodified version of the server, the default will do.
 
 =head2 statistics
 

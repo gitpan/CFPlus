@@ -1,6 +1,6 @@
 =head1 NAME
 
-CFPlus::DB - async. database access for cfplus
+CFPlus::DB - async. database and filesystem access for cfplus
 
 =head1 SYNOPSIS
 
@@ -18,15 +18,27 @@ use strict;
 use utf8;
 
 use Carp ();
-use AnyEvent ();
 use Storable ();
+use Config;
+use Event ();
 
 use CFPlus;
+
+our $DB_HOME = "$Crossfire::VARDIR/cfplus-$BerkeleyDB::db_version-$Config{archname}";
+
+sub path_of_res($) {
+   utf8::downgrade $_[0]; # bug in unpack "H*"
+   "$DB_HOME/res-data-" . unpack "H*", $_[0]
+}
 
 sub sync {
    # for debugging
    #CFPlus::DB::Server::req (sync => sub { });
    CFPlus::DB::Server::sync ();
+}
+
+sub exists($$$) {
+   CFPlus::DB::Server::req (exists => @_);
 }
 
 sub get($$$) {
@@ -37,20 +49,48 @@ sub put($$$$) {
    CFPlus::DB::Server::req (put => @_);
 }
 
+sub unlink($$) {
+   CFPlus::DB::Server::req (unlink => @_);
+}
+
+sub read_file($$) {
+   CFPlus::DB::Server::req (read_file => @_);
+}
+
+sub write_file($$$) {
+   CFPlus::DB::Server::req (write_file => @_);
+}
+
+sub prefetch_file($$$) {
+   CFPlus::DB::Server::req (prefetch_file => @_);
+}
+
+sub logprint($$$) {
+   CFPlus::DB::Server::req (logprint => @_);
+}
+
 our $tilemap;
 
 sub get_tile_id_sync($) {
-   my ($hash) = @_;
+   my ($name) = @_;
 
    # fetch the full face table first
    unless ($tilemap) {
-      CFPlus::DB::Server::req (table => facemap => sub { $tilemap = $_[0] });
+      CFPlus::DB::Server::req (table => facemap => sub {
+         $tilemap = $_[0];
+         delete $tilemap->{id};
+         my %maptile = reverse %$tilemap;#d#
+         if ((scalar keys %$tilemap) != (scalar keys %maptile)) {#d#
+            $tilemap = { };#d#
+            CFPlus::error "FATAL: facemap is not a 1:1 mapping, please report this and delete your $DB_HOME directory!\n";#d#
+         }#d#
+      });
       sync;
    }
 
-   $tilemap->{$hash} ||= do {
+   $tilemap->{$name} ||= do {
       my $id;
-      CFPlus::DB::Server::req (get_tile_id => $hash, sub { $id = $_[0] });
+      CFPlus::DB::Server::req (get_tile_id => $name, sub { $id = $_[0] });
       sync;
       $id
    }
@@ -63,7 +103,6 @@ use strict;
 use Fcntl;
 use BerkeleyDB;
 
-our $DB_HOME = "$Crossfire::VARDIR/cfplus";
 our $DB_ENV;
 our $DB_STATE;
 our %DB_TABLE;
@@ -81,7 +120,7 @@ sub open_db {
 #                 -ErrPrefix => "DATABASE",
                     -Verbose => 1,
                     -Flags => DB_CREATE | DB_RECOVER | DB_INIT_MPOOL | DB_INIT_LOCK | DB_INIT_TXN | $recover,
-                    -SetFlags => DB_AUTO_COMMIT | DB_LOG_AUTOREMOVE,
+                    -SetFlags => DB_AUTO_COMMIT | DB_LOG_AUTOREMOVE | DB_TXN_WRITE_NOSYNC,
                        or die "unable to create/open database home $DB_HOME: $BerkeleyDB::Error";
 
    1
@@ -99,12 +138,10 @@ sub table($) {
 #      -Filename => "database",
 #      -Subname  => $table,
          -Property => DB_CHKSUM,
-         -Flags    => DB_CREATE | DB_UPGRADE,
+         -Flags    => DB_AUTO_COMMIT | DB_CREATE | DB_UPGRADE,
             or die "unable to create/open database table $_[0]: $BerkeleyDB::Error"
    }
 }
-
-our $SYNC_INTERVAL = 60;
 
 our %CB;
 our $FH;
@@ -114,12 +151,17 @@ our $sync_timer;
 our $write_buf;
 our $read_buf;
 
+our $SYNC = Event->idle (min => 120, max => 180, parked => 1, cb => sub {
+   CFPlus::DB::Server::req (sync => sub { });
+   $_[0]->w->stop;
+});
+
 sub fh_write {
    my $len = syswrite $FH, $write_buf;
 
    substr $write_buf, 0, $len, "";
 
-   undef $fh_w_watcher
+   $fh_w_watcher->stop
       unless length $write_buf;
 }
 
@@ -165,17 +207,23 @@ sub req {
    $write_buf .= pack "N/a*", Storable::freeze [$id, $type, @args];
    $CB{$id} = $cb;
 
-   $fh_w_watcher = AnyEvent->io (fh => $FH, poll => 'w', cb => \&fh_write);
-}
-
-sub sync_tick {
-   req "sync", sub { };
-   $sync_timer = AnyEvent->timer (after => $SYNC_INTERVAL, cb => \&sync_tick);
+   $fh_w_watcher->start;
+   $SYNC->start;
 }
 
 sub do_sync {
    $DB_ENV->txn_checkpoint (0, 0, 0);
    ()
+}
+
+sub do_exists {
+   my ($db, $key) = @_;
+
+   utf8::downgrade $key;
+   my $data;
+   (table $db)->db_get ($key, $data) == 0
+      ? length $data
+      : ()
 }
 
 sub do_get {
@@ -210,13 +258,13 @@ sub do_table {
 }
 
 sub do_get_tile_id {
-   my ($hash) = @_;
+   my ($name) = @_;
 
    my $id;
    my $table = table "facemap";
 
    return $id
-      if $table->db_get ($hash, $id) == 0;
+      if $table->db_get ($name, $id) == 0;
 
    for (1..100) {
       my $txn = $DB_ENV->txn_begin;
@@ -224,16 +272,78 @@ sub do_get_tile_id {
       if ($status == 0 || $status == BerkeleyDB::DB_NOTFOUND) {
          $id = ($id || 64) + 1;
          if ($table->db_put (id => $id) == 0
-             && $table->db_put ($hash => $id) == 0) {
+             && $table->db_put ($name => $id) == 0) {
             $txn->txn_commit;
 
             return $id;
          }
       }
       $txn->txn_abort;
+      select undef, undef, undef, 0.01 * rand;
    }
 
    die "maximum number of transaction retries reached - database problems?";
+}
+
+sub do_unlink {
+   unlink $_[0];
+}
+
+sub do_read_file {
+   my ($path) = @_;
+
+   utf8::downgrade $path;
+   open my $fh, "<:raw", $path
+      or return;
+   sysread $fh, my $buf, -s $fh;
+
+   $buf
+}
+
+sub do_write_file {
+   my ($path, $data) = @_;
+
+   utf8::downgrade $path;
+   utf8::downgrade $data;
+   open my $fh, ">:raw", $path
+      or return;
+   syswrite $fh, $data;
+   close $fh;
+
+   1
+}
+
+sub do_prefetch_file {
+   my ($path, $size) = @_;
+
+   utf8::downgrade $path;
+   open my $fh, "<:raw", $path
+      or return;
+   sysread $fh, my $buf, $size;
+
+   1
+}
+
+our %LOG_FH;
+
+sub do_logprint {
+   my ($path, $line) = @_;
+
+   $LOG_FH{$path} ||= do {
+      open my $fh, ">>:utf8", $path
+         or warn "Couldn't open logfile $path: $!";
+
+      $fh->autoflush (1);
+
+      $fh
+   };
+
+   my ($sec, $min, $hour, $mday, $mon, $year) = localtime time;
+
+   my $ts = sprintf "%04d-%02d-%02d %02d:%02d:%02d",
+               $year + 1900, $mon + 1, $mday, $hour, $min, $sec;
+
+   print { $LOG_FH{$path} } "$ts $line\n"
 }
 
 sub run {
@@ -245,7 +355,9 @@ sub run {
    my $pid = fork;
    
    if (defined $pid && !$pid) {
+      local $SIG{QUIT};
       local $SIG{__DIE__};
+      local $SIG{__WARN__};
       eval {
          close $FH;
 
@@ -289,9 +401,9 @@ sub run {
 
    $CB{die} = sub { die shift };
 
-   $fh_r_watcher = AnyEvent->io (fh => $FH, poll => 'r', cb => \&fh_read);
-
-   sync_tick;
+   $fh_r_watcher = Event->io (fd => $FH, poll => 'r', nice => 1, cb => \&fh_read);
+   $fh_w_watcher = Event->io (fd => $FH, poll => 'w', nice => -1, parked => 1, cb => \&fh_write);
+   $SYNC->start;
 }
 
 sub stop {

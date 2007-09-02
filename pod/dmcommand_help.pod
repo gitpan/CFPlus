@@ -1,4 +1,4 @@
-=head1 Crossfire+ Dungeon Master Commands
+=head1 Crossfire TRT Dungeon Master Commands
 
 The following commands are only available to you if you are dungeon
 master, that is, a kind of server administrator with special privileges.
@@ -7,7 +7,7 @@ master, that is, a kind of server administrator with special privileges.
 
    abil <player> <attribute> <value> 
 
-abil will permanently change the ability scores of players. Attribute is
+B<abil> will permanently change the ability scores of players. Attribute is
 one of str, dex, con, int, wis, pow, cha. Value may not exceed 30.
 
 =head2 addexp
@@ -65,6 +65,18 @@ Without arguments, debug will simply print the current level of
 debugging. Valid debugging levels are 0-3 where: llevError = 0, llevInfo =
 1, llevDebug = 2, llevMonster = 3
 
+=head2 dm
+
+   dm <password>
+
+Try to become dungeon master.
+
+=head2 dmhide
+
+   dmhide <password>
+
+Same as becoming dm and hiding at the same time. See B<hide>.
+
 =head2 dump
 
    dump <tag> 
@@ -73,24 +85,6 @@ Using dump, you can see the attributes of any item in the game.  To find
 the object number of an item you wish to view, click on it. If this item
 is in your inventory, or you are standing over, click on yourself and the
 item tags will be displayed. see also: patch
-
-=head2 dumpallarchtypes
-
-   dumpallarchtypes 
- 
-This prints out a list of all archtypes to stderr.
-
-=head2 dumpallmaps
-
-   dumpallmaps 
-
-This prints out map information for all active maps to stderr.
-
-=head2 dumpallobjects
-
-   dumpallobjects 
-
-This prints out a list of all active objects to stderr.
 
 =head2 dumpbelow
 
@@ -115,17 +109,15 @@ This will cause you to permanently lose knowledge of a spell.
 
    free <tag> 
 
-C<free> should ONLY be used after remove.  Freeing an object that has
-not been removed will cause the game to crash. For most objects, simply
-removing them is sufficient and they will eventually be freed.  See Also:
-remove
+Removes (if necessary) and destroys the given object.
 
 =head2 goto
 
-   goto <mapname> 
+   goto <mapname> [<x> <y>]
 
 Using this command will instantly move you to the start point of the map
-specified.
+and position specified. If the position is omitted, the map entry point
+will be used instead.
 
 =head2 hide
 
@@ -196,14 +188,14 @@ Both of these commands will return you to normal player status.
 
 Both of these commands will return you to normal player status.
 
-=head2 overlay_save
+=head2 observe
 
-   overlay_save 
+   observe <playername>
 
-This will save everything on the current map that was not originally part
-of it as an overlay. The overlay will then be loaded anytime the map
-itself is loaded.  Be careful with this as EVERYTHING on the map will be
-saved in an overlay, such as spawned monsters and dropped objects.
+Observes the given object (currently players only). This means that the
+map and stats of the observed object will be displayed instead of ones
+own map and stats. Using observe without argument will switch back to
+displaying your own map and stats.
 
 =head2 patch
 
@@ -213,39 +205,18 @@ Using the patch command, you can radically modify the properties of
 objects in the game. Simply specify the object to modify and the new
 values of its variables (or completely new variables).  See Also: dump
 
-=head2 perl-reload
+=head2 reload
 
 Will first unload all loaded perl extensions and modules loaded from the
 extension directory, followed by loading the perl part of the plugin and
 all extensions found.
 
 This is done in an as atomic way as possible so it is safe to do at
-anytime.
-
-=head2 plugin
-
-   plugin <plugin name>
-
-This will load a new plugin into memory. Using this with no arguments,
-or invalid arguments will cause a server crash. Plugin name should be as
-it appears in your plugin directory. Double check the names before using
-plugins.
-
-=head2 pluglist
-
-   pluglist 
-
-This shows currently loaded plugins.
-
-=head2 plugout
-
-   plugout <plugin name>
-
-This will remove a loaded plugin from memory.
+anytime, but it will freeze the swerver for multiple seconds.
 
 =head2 possess
 
-   possess (nr)
+   possess <tag>
 
 Take over the body of a given monster. It is not suggested you try to
 possess another player, as bad things will undoubtably happen. Allows DM
@@ -269,16 +240,7 @@ supplied. see also: free
    reset
 
 Temporarily moves off all characters from the current map, then resets it.
-This will NOT reset any per-player maps, such as apartments, or remove
-unique items or items on unique floors. I.e. it works exactly as if the
-map reached its reset time prematurely.
-
-=head2 server_speed
-
-   server_speed [newspeed] 
-
-Without arguments, this prints current server speed. If given an argument,
-it will set server speed to the new speed.
+It works exactly as if the map reached its reset time prematurely.
 
 =head2 set_god
 
@@ -290,21 +252,10 @@ This will change a players diety to the diety specified.
 
    shutdown 
 
-This will cause a Crossfire+ to shut down entirely by first kicking out
-all players, saving all maps and finally exiting. Crossfire servers will
-kick out players and might or might not save some players or maps.
-
-=head2 spellreset
-
-   spellreset 
-
-This causes the spell table to be reinitialized.
-
-=head2 ssdumptable
-
-   ssdumptable 
-
-This will print out the current hash table to stderr.
+This will cause a Crossfire TRT server to shut down entirely by first
+kicking out all players, saving all maps and finally exiting. Crossfire
+servers will kick out players and might or might not save some players or
+maps.
 
 =head2 stats
 
@@ -322,7 +273,7 @@ This will print out information regarding current styles in use.
 
    summon <player> 
 
-Summoning a player will bring them immediately to your location.  There
+Summoning a player will bring them immediately to your location. There
 is no 'reverse' summoning, except to go to a map yourself and summon the
 player again.
 
@@ -331,13 +282,6 @@ player again.
    teleport <player> 
 
 C<teleport> will bring you immediately next to the player's location.
-
-=head2 toggle_shout
-
-   toggle_shout <player> 
-
-Will toggle the no_shout bit for the named player.  This will prevent or
-enable the player to use the shout command.
 
 =head2 wizcast
 

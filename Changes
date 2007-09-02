@@ -1,8 +1,17 @@
 Revision history for Perl extension CFPlus
 
+0.99  Sun Sep  2 10:48:08 CEST 2007
+	- much better compatibility to gl drivers that claim
+          opengl 2.0 but then providing some features in software.
+        - better face caching.
+        - background music and spatial sound effects.
+        - more default keymappings.
+        - item descriptions in tooltips.
+
 0.98  Wed May  9 13:46:13 CEST 2007
 	- 64x64 faceset support.
         - better message support.
+        - asynchonrous database accesses.
 
 0.97  Thu Jan 25 06:16:08 CET 2007
 	- rewritten keybinding system.

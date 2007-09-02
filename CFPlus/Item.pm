@@ -2,6 +2,7 @@ package CFPlus::Item;
 
 use strict;
 use utf8;
+use Encode;
 
 use Crossfire::Protocol::Constants;
 
@@ -116,7 +117,7 @@ sub update_widgets {
                   &::open_string_query ("Text to inscribe", sub {
                      my ($entry, $txt) = @_;
                      $::CONN->send ("mark ". pack "N", $self->{tag});
-                     $::CONN->send ("command use_skill inscription $txt");
+                     $::CONN->send_utf8 ("command use_skill inscription $txt");
                   });
                }
             ],
@@ -125,7 +126,7 @@ sub update_widgets {
                   &::open_string_query ("Rename item to:", sub {
                      my ($entry, $txt) = @_;
                      $::CONN->send ("mark ". pack "N", $self->{tag});
-                     $::CONN->send ("command rename to <$txt>");
+                     $::CONN->send_utf8 ("command rename to <$txt>");
                   }, $self->{name},
                   "If you input no name or erase the current custom name, the custom name will be unset");
                }
@@ -196,7 +197,7 @@ sub update_widgets {
       on_tooltip_show => sub {
          my ($widget) = @_;
 
-         $::CONN->ex ($self->{tag}, sub {
+         $::CONN && $::CONN->ex ($self->{tag}, sub {
             my ($long_desc) = @_;
 
             $long_desc =~ s/\s+$//;
@@ -230,3 +231,4 @@ sub update_widgets {
     . "\n\n$tooltip_std"
    );
 }
+

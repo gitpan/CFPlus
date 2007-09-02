@@ -32,10 +32,6 @@ our $TOOLTIP_WATCHER = Event->idle (min => 1/60, cb => sub {
 
                return if $ENV{CFPLUS_DEBUG} & 8;
 
-               my $tip = $widget->{tooltip};
-
-               $tip = $tip->($widget) if CODE:: eq ref $tip;
-               
                $TOOLTIP->set_tooltip_from ($widget);
                $TOOLTIP->show;
             }
@@ -115,8 +111,12 @@ sub feed_sdl_button_down_event {
    if ($GRAB) {
       if ($ev->{button} == 4 || $ev->{button} == 5) {
          # mousewheel
-         $ev->{dx} = 0;
-         $ev->{dy} = $ev->{button} * 2 - 9;
+         my $delta = $ev->{button} * 2 - 9;
+         my $shift = $ev->{mod} & CFPlus::KMOD_SHIFT;
+
+         $ev->{dx} = $shift ? $delta : 0;
+         $ev->{dy} = $shift ? 0 : $delta;
+
          $GRAB->emit (mouse_wheel => $ev);
       } else {
          $GRAB->emit (button_down => $ev)
@@ -270,6 +270,10 @@ sub destroy {
    %$self = ();
 }
 
+sub TO_JSON {
+   { "\fw" => $_[0]{s_id} }
+}
+
 sub show {
    my ($self) = @_;
 
@@ -318,8 +322,8 @@ sub set_visibility {
 
    return if $self->{visible} == $visible;
 
-   $visible ? $self->hide
-            : $self->show;
+   $visible ? $self->show
+            : $self->hide;
 }
 
 sub toggle_visibility {
@@ -545,17 +549,8 @@ sub emit {
    $self->{parent} && $self->{parent}->emit ($signal, @args)
 }
 
-sub find_widget {
-   my ($self, $x, $y) = @_;
-
-   return () unless $self->{can_events};
-
-   return $self
-      if $x >= $self->{x} && $x < $self->{x} + $self->{w}
-          && $y >= $self->{y} && $y < $self->{y} + $self->{h};
-
-   ()
-}
+#sub find_widget {
+# in .xs
 
 sub set_parent {
    my ($self, $parent) = @_;
@@ -596,52 +591,8 @@ sub reconfigure {
 # functions seems pointless.
 our ($draw_x, $draw_y, $draw_w, $draw_h); # screen rectangle being drawn
 
-sub draw {
-   my ($self) = @_;
-
-   return unless $self->{h} && $self->{w};
-
-   # update screen rectangle
-   local $draw_x = $draw_x + $self->{x};
-   local $draw_y = $draw_y + $self->{y};
-
-   # skip widgets that are entirely outside the drawing area
-   return if ($draw_x + $self->{w} < 0) || ($draw_x >= $draw_w)
-          || ($draw_y + $self->{h} < 0) || ($draw_y >= $draw_h);
-
-   glPushMatrix;
-   glTranslate $self->{x}, $self->{y}, 0;
-
-   if ($self == $HOVER && $self->{can_hover}) {
-      glColor 1*0.2, 0.8*0.2, 0.5*0.2, 0.2;
-      glEnable GL_BLEND;
-      glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
-      glBegin GL_QUADS;
-      glVertex 0         , 0;
-      glVertex $self->{w}, 0;
-      glVertex $self->{w}, $self->{h};
-      glVertex 0         , $self->{h};
-      glEnd;
-      glDisable GL_BLEND;
-   }
-
-   if ($ENV{CFPLUS_DEBUG} & 1) {
-      glPushMatrix;
-      glColor 1, 1, 0, 1;
-      glTranslate 0.375, 0.375;
-      glBegin GL_LINE_LOOP;
-      glVertex 0             , 0;
-      glVertex $self->{w} - 1, 0;
-      glVertex $self->{w} - 1, $self->{h} - 1;
-      glVertex 0             , $self->{h} - 1;
-      glEnd;
-      glPopMatrix;
-      #CFPlus::UI::Label->new (w => $self->{w}, h => $self->{h}, text => $self, fontsize => 0)->_draw;
-   }
-
-   $self->_draw;
-   glPopMatrix;
-}
+#sub draw {
+#CFPlus.xs
 
 sub _draw {
    my ($self) = @_;
@@ -649,12 +600,12 @@ sub _draw {
    warn "no draw defined for $self\n";
 }
 
-my $cntx;#d#
 sub DESTROY {
    my ($self) = @_;
 
    return if CFPlus::in_destruct;
 
+   local $@;
    eval { $self->destroy };
    warn "exception during widget destruction: $@" if $@ & $@ != /during global destruction/;
 
@@ -672,8 +623,6 @@ use CFPlus::OpenGL;
 
 sub new {
    my $class = shift;
-
-   # range [value, low, high, page]
 
    $class->SUPER::new (
       #bg        => [0, 0, 0, 0.2],
@@ -695,14 +644,7 @@ sub _draw {
       glEnable GL_BLEND;
       glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
       glColor_premultiply @$color;
-
-      glBegin GL_QUADS;
-      glVertex 0 , 0;
-      glVertex 0 , $h;
-      glVertex $w, $h;
-      glVertex $w, 0;
-      glEnd;
-
+      glRect 0, 0, $w, $h;
       glDisable GL_BLEND;
    }
 }
@@ -744,7 +686,7 @@ sub new {
    );
 
    $self->add (@$children)
-      if $children;
+      if $children && @$children;
 
    $self
 }
@@ -763,6 +705,7 @@ sub add {
    $_->set_parent ($self)
       for @widgets;
 
+   # TODO: only do this in widgets that need it, e.g. root, fixed
    use sort 'stable';
 
    $self->{children} = [
@@ -771,6 +714,10 @@ sub add {
    ];
 
    $self->realloc;
+
+   $self->emit (c_add => \@widgets);
+
+   map $_+0, @widgets
 }
 
 sub children {
@@ -778,12 +725,15 @@ sub children {
 }
 
 sub remove {
-   my ($self, $child) = @_;
+   my ($self, @widgets) = @_;
 
-   delete $child->{parent};
-   $child->hide;
+   $self->emit (c_remove => \@widgets);
 
-   $self->{children} = [ grep $_ != $child, @{ $self->{children} } ];
+   for my $child (@widgets) {
+      delete $child->{parent};
+      $child->hide;
+      $self->{children} = [ grep $_ != $child, @{ $self->{children} } ];
+   }
 
    $self->realloc;
 }
@@ -791,7 +741,7 @@ sub remove {
 sub clear {
    my ($self) = @_;
 
-   my $children = delete $self->{children};
+   my $children = $self->{children};
    $self->{children} = [];
 
    for (@$children) {
@@ -821,7 +771,7 @@ sub find_widget {
 sub _draw {
    my ($self) = @_;
 
-   $_->draw for @{$self->{children}};
+   $_->draw for $self->visible_children;
 }
 
 #############################################################################
@@ -841,7 +791,7 @@ sub new {
 sub add {
    my ($self, $child) = @_;
 
-   $self->SUPER::remove ($_) for @{ $self->{children} };
+   $self->clear;
    $self->SUPER::add ($child);
 }
 
@@ -942,6 +892,8 @@ sub _draw {
 
 package CFPlus::UI::ViewPort;
 
+use List::Util qw(min max);
+
 our @ISA = CFPlus::UI::Window::;
 
 sub new {
@@ -959,8 +911,8 @@ sub size_request {
 
    my ($w, $h) = @{$self->child}{qw(req_w req_h)};
 
-   $w = 10 if $self->{scroll_x};
-   $h = 10 if $self->{scroll_y};
+   $w = 1 if $self->{scroll_x};
+   $h = 1 if $self->{scroll_y};
 
    ($w, $h)
 }
@@ -982,10 +934,34 @@ sub invoke_size_allocate {
 sub set_offset {
    my ($self, $x, $y) = @_;
 
-   $self->{view_x} = int $x;
-   $self->{view_y} = int $y;
+   my $x = max 0, min $self->child->{w} - $self->{w}, int $x;
+   my $y = max 0, min $self->child->{h} - $self->{h}, int $y;
 
-   $self->update;
+   if ($x != $self->{view_x} or $y != $self->{view_y}) {
+      $self->{view_x} = $x;
+      $self->{view_y} = $y;
+
+      $self->emit (changed => $x, $y);
+      $self->update;
+   }
+}
+
+sub set_center {
+   my ($self, $x, $y) = @_;
+
+   $self->set_offset ($x - $self->{w} * .5, $y - $self->{h} * .5);
+}
+
+sub make_visible {
+   my ($self, $x, $y, $border) = @_;
+
+   if (  $x < $self->{view_x} + $self->{w} * $border
+      || $x > $self->{view_x} + $self->{w} * (1 - $border)
+      || $y < $self->{view_y} + $self->{h} * $border
+      || $y > $self->{view_y} + $self->{h} * (1 - $border)
+   ) {
+      $self->set_center ($x, $y);
+   }
 }
 
 # hmm, this does not work for topleft of $self... but we should not ask for that
@@ -1010,7 +986,7 @@ sub find_widget {
    if (   $x >= $self->{x} && $x < $self->{x} + $self->{w}
        && $y >= $self->{y} && $y < $self->{y} + $self->{h}
    ) {
-       $self->child->find_widget ($x + $self->{view_x}, $y + $self->{view_y})
+      $self->child->find_widget ($x + $self->{view_x}, $y + $self->{view_y})
    } else {
       $self->CFPlus::UI::Base::find_widget ($x, $y)
    }
@@ -1031,7 +1007,7 @@ sub _render {
 
 package CFPlus::UI::ScrolledWindow;
 
-our @ISA = CFPlus::UI::HBox::;
+our @ISA = CFPlus::UI::Table::;
 
 sub new {
    my ($class, %arg) = @_;
@@ -1040,28 +1016,66 @@ sub new {
 
    my $self;
 
-   my $slider = new CFPlus::UI::Slider
+   my $hslider = new CFPlus::UI::Slider
+      c_col      => 0,
+      c_row      => 1,
+      vertical   => 0,
+      range      => [0, 0, 1, 0.01], # HACK fix
+      on_changed => sub {
+         $self->{hpos} = $_[1];
+         $self->{vp}->set_offset ($self->{hpos}, $self->{vpos});
+      },
+   ;
+
+   my $vslider = new CFPlus::UI::Slider
+      c_col      => 1,
+      c_row      => 0,
       vertical   => 1,
       range      => [0, 0, 1, 0.01], # HACK fix
       on_changed => sub {
-         $self->{vp}->set_offset (0, $_[1]);
+         $self->{vpos} = $_[1];
+         $self->{vp}->set_offset ($self->{hpos}, $self->{vpos});
       },
    ;
 
    $self = $class->SUPER::new (
-      vp         => (new CFPlus::UI::ViewPort expand => 1),
+      scroll_x   => 0,
+      scroll_y   => 1,
       can_events => 1,
-      slider     => $slider,
+      hslider    => $hslider,
+      vslider    => $vslider,
+      col_expand => [1, 0],
+      row_expand => [1, 0],
       %arg,
    );
 
-   $self->SUPER::add ($self->{vp}, $self->{slider});
+   $self->{vp} = new CFPlus::UI::ViewPort
+      c_col      => 0,
+      c_row      => 0,
+      expand     => 1,
+      scroll_x   => $self->{scroll_x},
+      scroll_y   => $self->{scroll_y},
+      on_changed => sub {
+         my ($vp, $x, $y) = @_;
+
+         $vp->{parent}{hslider}->set_value ($x);
+         $vp->{parent}{vslider}->set_value ($y);
+
+         0
+      },
+      on_size_allocate => sub {
+         my ($vp, $w, $h) = @_;
+         $vp->{parent}->update_slider;
+         0
+      },
+   ;
+
+   $self->SUPER::add ($self->{vp});
+
    $self->add ($child) if $child;
 
    $self
 }
-
-#TODO# update range on size_allocate depending on child
 
 sub add {
    my ($self, $widget) = @_;
@@ -1069,35 +1083,103 @@ sub add {
    $self->{vp}->add ($self->{child} = $widget);
 }
 
-sub invoke_mouse_wheel {
-   my ($self, $ev) = @_;
-
-   return 0 unless $ev->{dy}; # only vertical movements
-
-   $self->{slider}->emit (mouse_wheel => $ev);
-
-   1
-}
+sub set_offset   { shift->{vp}->set_offset   (@_) }
+sub set_center   { shift->{vp}->set_center   (@_) }
+sub make_visible { shift->{vp}->make_visible (@_) }
 
 sub update_slider {
    my ($self) = @_;
 
-   $self->{slider}->set_range ([$self->{slider}{range}[0], 0, $self->{vp}->child->{h}, $self->{vp}{h}, 1]);
+   my $child = ($self->{vp} or return)->child;
+
+   if ($self->{scroll_x}) {
+      my ($w1, $w2) = ($child->{req_w}, $self->{vp}{w});
+      $self->{hslider}->set_range ([$self->{hslider}{range}[0], 0, $w1, $w2, 1]);
+
+      my $visible = $w1 > $w2;
+      if ($visible != $self->{hslider_visible}) {
+         $self->{hslider_visible} = $visible;
+         $visible ? $self->SUPER::add ($self->{hslider})
+                  : $self->SUPER::remove ($self->{hslider});
+      }
+   }
+
+   if ($self->{scroll_y}) {
+      my ($h1, $h2) = ($child->{req_h}, $self->{vp}{h});
+      $self->{vslider}->set_range ([$self->{vslider}{range}[0], 0, $h1, $h2, 1]);
+
+      my $visible = $h1 > $h2;
+      if ($visible != $self->{vslider_visible}) {
+         $self->{vslider_visible} = $visible;
+         $visible ? $self->SUPER::add ($self->{vslider})
+                  : $self->SUPER::remove ($self->{vslider});
+      }
+   }
 }
 
-sub update {
-   my ($self) = @_;
+sub start_dragging {
+   my ($self, $ev) = @_;
 
-   $self->SUPER::update;
+   $self->grab_focus;
 
-   $self->update_slider;
+   my $ox = $self->{vp}{view_x};
+   my $oy = $self->{vp}{view_y};
+   
+   $self->{motion} = sub {
+      my ($ev, $x, $y) = @_;
+
+      $ox -= $ev->{xrel};
+      $oy -= $ev->{yrel};
+
+      $self->{vp}->set_offset ($ox, $oy);
+   };
+}
+
+sub invoke_mouse_wheel {
+   my ($self, $ev) = @_;
+
+   $self->{vslider}->emit (mouse_wheel => $ev) if $self->{vslider_visible};
+   $self->{hslider}->emit (mouse_wheel => $ev) if $self->{hslider_visible};
+
+   1
+}
+
+sub invoke_button_down {
+   my ($self, $ev, $x, $y) = @_;
+
+   if ($ev->{button} == 2) {
+      $self->start_dragging ($ev);
+      return 1;
+   }
+
+   0
+}
+
+sub invoke_button_up {
+   my ($self, $ev, $x, $y) = @_;
+
+   if (delete $self->{motion}) {
+      return 1;
+   }
+
+   0
+}
+
+sub invoke_mouse_motion {
+   my ($self, $ev, $x, $y) = @_;
+
+   if ($self->{motion}) {
+      $self->{motion}->($ev, $x, $y);
+      return 1;
+   }
+
+   0
 }
 
 sub invoke_size_allocate {
    my ($self, $w, $h) = @_;
 
    $self->update_slider;
-
    $self->SUPER::invoke_size_allocate ($w, $h)
 }
 
@@ -1127,14 +1209,7 @@ sub _draw {
       glEnable GL_BLEND;
       glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
       glColor_premultiply @{ $self->{bg} };
-
-      glBegin GL_QUADS;
-      glVertex 0 , 0;
-      glVertex 0 , $h;
-      glVertex $w, $h;
-      glVertex $w, 0;
-      glEnd;
-
+      glRect 0, 0, $w, $h;
       glDisable GL_BLEND;
    }
 
@@ -1256,6 +1331,10 @@ my $bg =
 my @border = 
       map { new_from_file CFPlus::Texture CFPlus::find_rcfile $_, mipmap => 1 }
          qw(d1_border_top.png d1_border_right.png d1_border_left.png d1_border_bottom.png);
+
+my @icon =
+      map { new_from_file CFPlus::Texture CFPlus::find_rcfile $_, mipmap => 1 }
+         qw(x1_move.png x1_resize.png);
 
 sub new {
    my ($class, %arg) = @_;
@@ -1434,10 +1513,24 @@ sub _draw {
    my $border = $self->border;
 
    glColor @{ $self->{border_bg} };
-   $border[0]->draw_quad_alpha (0, 0, $w, $border);
-   $border[1]->draw_quad_alpha (0, $border, $border, $ch);
-   $border[2]->draw_quad_alpha ($w - $border, $border, $border, $ch);
-   $border[3]->draw_quad_alpha (0, $h - $border, $w, $border);
+   $border[0]->draw_quad_alpha (           0,            0, $w, $border);
+   $border[1]->draw_quad_alpha (           0,      $border, $border, $ch);
+   $border[2]->draw_quad_alpha ($w - $border,      $border, $border, $ch);
+   $border[3]->draw_quad_alpha (           0, $h - $border, $w, $border);
+
+   # move
+   my $w2 = ($w - $border) * .5;
+   my $h2 = ($h - $border) * .5;
+   $icon[0]->draw_quad_alpha (           0,          $h2, $border, $border);
+   $icon[0]->draw_quad_alpha ($w - $border,          $h2, $border, $border);
+   $icon[0]->draw_quad_alpha ($w2         , $h - $border, $border, $border);
+
+   # resize
+   $icon[1]->draw_quad_alpha (           0,            0, $border, $border);
+   $icon[1]->draw_quad_alpha ($w - $border,            0, $border, $border)
+      unless $self->{has_close_button};
+   $icon[1]->draw_quad_alpha (           0, $h - $border, $border, $border);
+   $icon[1]->draw_quad_alpha ($w - $border, $h - $border, $border, $border);
 
    if (@{$self->{bg}} < 4 || $self->{bg}[3]) {
       glColor @{ $self->{bg} };
@@ -1468,7 +1561,7 @@ sub _draw {
 
 package CFPlus::UI::Table;
 
-our @ISA = CFPlus::UI::Base::;
+our @ISA = CFPlus::UI::Container::;
 
 use List::Util qw(max sum);
 
@@ -1479,47 +1572,37 @@ sub new {
 
    $class->SUPER::new (
       col_expand => [],
+      row_expand => [],
       @_,
    )
 }
 
-sub children {
-   grep $_, map @$_, grep $_, @{ $_[0]{children} }
+sub add {
+   my ($self, @widgets) = @_;
+
+   for my $child (@widgets) {
+      $child->{c_rowspan} ||= 1;
+      $child->{c_colspan} ||= 1;
+   }
+
+   $self->SUPER::add (@widgets);
 }
 
-sub add {
-   my ($self) = shift;
+sub add_at {
+   my $self = shift;
+
+   my @widgets;
 
    while (@_) {
-      my ($x, $y, $child) = splice @_, 0, 3, ();
-      $child->set_parent ($self);
-      $self->{children}[$y][$x] = $child;
+      my ($col, $row, $child) = splice @_, 0, 3, ();
+
+      $child->{c_row} = $row;
+      $child->{c_col} = $col;
+
+      push @widgets, $child;
    }
 
-   $self->{force_realloc} = 1;
-   $self->{force_size_alloc} = 1;
-   $self->realloc;
-}
-
-sub remove {
-   my ($self, $child) = @_;
-
-   # TODO: not yet implemented
-}
-
-# TODO: move to container class maybe? send children a signal on removal?
-sub clear {
-   my ($self) = @_;
-
-   my @children = $self->children;
-   delete $self->{children};
-   
-   for (@children) {
-      delete $_->{parent};
-      $_->hide;
-   }
-
-   $self->realloc;
+   $self->add (@widgets);
 }
 
 sub get_wh {
@@ -1527,17 +1610,27 @@ sub get_wh {
 
    my (@w, @h);
 
-   for my $y (0 .. $#{$self->{children}}) {
-      my $row = $self->{children}[$y]
-         or next;
+   my @children = $self->children;
 
-      for my $x (0 .. $#$row) {
-         my $widget = $row->[$x]
-            or next;
-         my ($w, $h) = @$widget{qw(req_w req_h)};
+   # first pass, columns
+   for my $widget (sort { $a->{c_colspan} <=> $b->{c_colspan} } @children) {
+      my ($c, $w, $cs) = @$widget{qw(c_col req_w c_colspan)};
 
-         $w[$x] = max $w[$x], $w;
-         $h[$y] = max $h[$y], $h;
+      my $sw = sum @w[$c .. $c + $cs - 1];
+
+      if ($w > $sw) {
+         $_ += ($w - $sw) / ($sw ? $sw / $_ : $cs) for @w[$c .. $c + $cs - 1];
+      }
+   }
+
+   # second pass, rows
+   for my $widget (sort { $a->{c_rowspan} <=> $b->{c_rowspan} } @children) {
+      my ($r, $h, $rs) = @$widget{qw(c_row req_h c_rowspan)};
+
+      my $sh = sum @h[$r .. $r + $rs - 1];
+
+      if ($h > $sh) {
+         $_ += ($h - $sh) / ($sh ? $sh / $_ : $rs) for @h[$r .. $r + $rs - 1];
       }
    }
 
@@ -1563,65 +1656,102 @@ sub invoke_size_allocate {
    my $req_w = (sum @$ws) || 1;
    my $req_h = (sum @$hs) || 1;
 
-   # TODO: nicer code && do row_expand
+   # now linearly scale the rows/columns to the allocated size
    my @col_expand = @{$self->{col_expand}};
    @col_expand = (1) x @$ws unless @col_expand;
    my $col_expand = (sum @col_expand) || 1;
 
-   # linearly scale sizes
    $ws->[$_] += $col_expand[$_] / $col_expand * ($w - $req_w) for 0 .. $#$ws;
-   $hs->[$_] *= 1 * $h / $req_h for 0 .. $#$hs;
 
    CFPlus::UI::harmonize $ws;
+
+   my @row_expand = @{$self->{row_expand}};
+   @row_expand = (1) x @$ws unless @row_expand;
+   my $row_expand = (sum @row_expand) || 1;
+
+   $hs->[$_] += $row_expand[$_] / $row_expand * ($h - $req_h) for 0 .. $#$hs;
+
    CFPlus::UI::harmonize $hs;
 
-   my $y;
+   my @x; for (0 .. $#$ws) { $x[$_ + 1] = $x[$_] + $ws->[$_] }
+   my @y; for (0 .. $#$hs) { $y[$_ + 1] = $y[$_] + $hs->[$_] }
 
-   for my $r (0 .. $#{$self->{children}}) {
-      my $row = $self->{children}[$r]
-         or next;
+   for my $widget ($self->children) {
+      my ($r, $c, $w, $h, $rs, $cs) = @$widget{qw(c_row c_col req_w req_h c_rowspan c_colspan)};
 
-      my $x = 0;
-      my $row_h = $hs->[$r];
-      
-      for my $c (0 .. $#$row) {
-         my $col_w = $ws->[$c];
-
-         if (my $widget = $row->[$c]) {
-            $widget->configure ($x, $y, $col_w, $row_h);
-         }
-
-         $x += $col_w;
-      }
-
-      $y += $row_h;
+      $widget->configure (
+         $x[$c], $y[$r],
+         $x[$c + $cs] - $x[$c], $y[$r + $rs] - $y[$r],
+      );
    }
 
    1
 }
 
-sub find_widget {
-   my ($self, $x, $y) = @_;
+#############################################################################
 
-   $x -= $self->{x};
-   $y -= $self->{y};
+package CFPlus::UI::Fixed;
 
-   my $res;
+use List::Util qw(min max);
 
-   for (grep $_, map @$_, grep $_, @{ $self->{children} }) {
-      $res = $_->find_widget ($x, $y)
-         and return $res;
-   }
+our @ISA = CFPlus::UI::Container::;
 
-   $self->SUPER::find_widget ($x + $self->{x}, $y + $self->{y})
+sub _scale($$$) {
+   my ($rel, $val, $max) = @_;
+
+   $rel ? $val * $max : $val
 }
 
-sub _draw {
+sub size_request {
    my ($self) = @_;
 
-   for (grep $_, @{$self->{children}}) {
-      $_->draw for grep $_, @$_;
+   my ($x1, $y1, $x2, $y2) = (0, 0, 0, 0);
+
+   # determine overall size by querying abs widgets
+   for my $child ($self->visible_children) {
+      unless ($child->{c_rel}) {
+         my $x = $child->{c_x};
+         my $y = $child->{c_y};
+
+         $x1 = min $x1, $x; $x2 = max $x2, $x + $child->{req_w};
+         $y1 = min $y1, $y; $y2 = max $y2, $y + $child->{req_h};
+      }
    }
+
+   my $W = $x2 - $x1;
+   my $H = $y2 - $y1;
+
+   # now layout remaining widgets
+   for my $child ($self->visible_children) {
+      if ($child->{c_rel}) {
+         my $x = _scale $child->{c_rel}, $child->{c_x}, $W;
+         my $y = _scale $child->{c_rel}, $child->{c_y}, $H;
+
+         $x1 = min $x1, $x; $x2 = max $x2, $x + $child->{req_w};
+         $y1 = min $y1, $y; $y2 = max $y2, $y + $child->{req_h};
+      }
+   }
+
+   my $W = $x2 - $x1;
+   my $H = $y2 - $y1;
+
+   ($W, $H)
+}
+
+sub invoke_size_allocate {
+   my ($self, $W, $H) = @_;
+
+   for my $child ($self->visible_children) {
+      my $x = _scale $child->{c_rel}, $child->{c_x}, $W;
+      my $y = _scale $child->{c_rel}, $child->{c_y}, $H;
+
+      $x += $child->{c_halign} * $child->{req_w};
+      $y += $child->{c_valign} * $child->{req_h};
+
+      $child->configure (int $x, int $y, $child->{req_w}, $child->{req_h});
+   }
+
+   1
 }
 
 #############################################################################
@@ -1633,14 +1763,16 @@ our @ISA = CFPlus::UI::Container::;
 sub size_request {
    my ($self) = @_;
 
+   my @children = $self->visible_children;
+
    $self->{vertical}
       ?  (
-            (List::Util::max map $_->{req_w}, @{$self->{children}}),
-            (List::Util::sum map $_->{req_h}, @{$self->{children}}),
+            (List::Util::max map $_->{req_w}, @children),
+            (List::Util::sum map $_->{req_h}, @children),
          )
       :  (
-            (List::Util::sum map $_->{req_w}, @{$self->{children}}),
-            (List::Util::max map $_->{req_h}, @{$self->{children}}),
+            (List::Util::sum map $_->{req_w}, @children),
+            (List::Util::max map $_->{req_h}, @children),
          )
 }
 
@@ -1774,6 +1906,12 @@ sub realloc {
    $self->SUPER::realloc;
 }
 
+sub clear {
+   my ($self) = @_;
+
+   $self->set_text ("");
+}
+
 sub set_text {
    my ($self, $text) = @_;
 
@@ -1889,13 +2027,29 @@ sub _draw {
       $self->{oy} = int ($self->{valign} < 0 ? $self->{padding_y}
                        : $self->{valign} > 0 ? $self->{h} - $size->[1] - $self->{padding_y}
                        :                       ($self->{h} - $size->[1]) * 0.5);
+
+      $self->{layout}->render ($self->{ox}, $self->{oy}, $self->{style});
    };
 
-   my $w = List::Util::min $self->{w} + 4, $size->[0];
-   my $h = List::Util::min $self->{h} + 2, $size->[1];
+#   unless ($self->{list}) {
+#      $self->{list} = CFPlus::OpenGL::glGenList;
+#      CFPlus::OpenGL::glNewList $self->{list};
+#      $self->{layout}->render ($self->{ox}, $self->{oy}, $self->{style});
+#      CFPlus::OpenGL::glEndList;
+#   }
+#   
+#   CFPlus::OpenGL::glCallList $self->{list};
 
-   $self->{layout}->render ($self->{ox}, $self->{oy}, $self->{style});
+   $self->{layout}->draw;
 }
+
+#sub destroy {
+#   my ($self) = @_;
+#
+#   CFPlus::OpenGL::glDeleteList delete $self->{list} if $self->{list};
+#
+#   $self->SUPER::destroy;
+#}
 
 #############################################################################
 
@@ -1911,8 +2065,10 @@ sub new {
    $class->SUPER::new (
       fg         => [1, 1, 1],
       bg         => [0, 0, 0, 0.2],
-      active_bg  => [1, 1, 1, 0.5],
-      active_fg  => [0, 0, 0],
+      outline    => [0.6, 0.3, 0.1],
+      active_bg  => [0, 0,  1, .2],
+      active_fg  => [1, 1,  1],
+      active_outline => [1, 1, 0],
       can_hover  => 1,
       can_focus  => 1,
       valign     => 0,
@@ -2062,12 +2218,7 @@ sub _draw {
 
    glEnable GL_BLEND;
    glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
-   glBegin GL_QUADS;
-   glVertex 0         , 0;
-   glVertex 0         , $self->{h};
-   glVertex $self->{w}, $self->{h};
-   glVertex $self->{w}, 0;
-   glEnd;
+   glRect 0, 0, $self->{w}, $self->{h};
    glDisable GL_BLEND;
 
    $self->SUPER::_draw;
@@ -2079,12 +2230,27 @@ sub _draw {
          my $text = substr $self->{text}, 0, $self->{cursor};
          utf8::encode $text;
 
-         @$self{qw(cur_x cur_y cur_h)} = $self->{layout}->cursor_pos (length $text)
+         @$self{qw(cur_x cur_y cur_h)} = $self->{layout}->cursor_pos (length $text);
       }
 
+      glColor_premultiply @{$self->{active_fg}};
       glBegin GL_LINES;
-      glVertex 0.5 + $self->{cur_x} + $self->{ox}, $self->{cur_y} + $self->{oy};
-      glVertex 0.5 + $self->{cur_x} + $self->{ox}, $self->{cur_y} + $self->{oy} + $self->{cur_h};
+      glVertex $self->{cur_x} + $self->{ox} + .5, $self->{cur_y} + $self->{oy};
+      glVertex $self->{cur_x} + $self->{ox} + .5, $self->{cur_y} + $self->{oy} + $self->{cur_h};
+      glEnd;
+
+      glLineWidth 3;
+      glColor @{$self->{active_outline}};
+      glRect_lineloop 1.5, 1.5, $self->{w} - 1.5, $self->{h} - 1.5;
+      glLineWidth 1;
+
+   } else {
+      glColor @{$self->{outline}};
+      glBegin GL_LINE_STRIP;
+      glVertex              .5, $self->{h} *  .5;
+      glVertex              .5, $self->{h} - 2.5;
+      glVertex $self->{w} - .5, $self->{h} - 2.5;
+      glVertex $self->{w} - .5, $self->{h} *  .5;
       glEnd;
    }
 }
@@ -2181,6 +2347,55 @@ sub invoke_key_down {
 
 #############################################################################
 
+package CFPlus::UI::ButtonBin;
+
+our @ISA = CFPlus::UI::Bin::;
+
+use CFPlus::OpenGL;
+
+my @tex =
+      map { new_from_file CFPlus::Texture CFPlus::find_rcfile $_, mipmap => 1 }
+         qw(b1_button_inactive.png b1_button_active.png);
+
+sub new {
+   my $class = shift;
+
+   $class->SUPER::new (
+      can_hover  => 1,
+      align      => 0,
+      valign     => 0,
+      can_events => 1,
+      @_
+   )
+}
+
+sub invoke_button_up {
+   my ($self, $ev, $x, $y) = @_;
+
+   $self->emit ("activate")
+      if $x >= 0 && $x < $self->{w}
+         && $y >= 0 && $y < $self->{h};
+
+   1
+}
+
+sub _draw {
+   my ($self) = @_;
+
+   glEnable GL_TEXTURE_2D;
+   glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE;
+   glColor 0, 0, 0, 1;
+
+   my $tex = $tex[$GRAB == $self];
+   $tex->draw_quad_alpha (0, 0, $self->{w}, $self->{h});
+
+   glDisable GL_TEXTURE_2D;
+
+   $self->SUPER::_draw;
+}
+
+#############################################################################
+
 package CFPlus::UI::Button;
 
 our @ISA = CFPlus::UI::Label::;
@@ -2189,7 +2404,7 @@ use CFPlus::OpenGL;
 
 my @tex =
       map { new_from_file CFPlus::Texture CFPlus::find_rcfile $_, mipmap => 1 }
-         qw(b1_button_active.png);
+         qw(b1_button_inactive.png b1_button_active.png);
 
 sub new {
    my $class = shift;
@@ -2197,8 +2412,8 @@ sub new {
    $class->SUPER::new (
       padding_x  => 4,
       padding_y  => 4,
-      fg         => [1, 1, 1],
-      active_fg  => [0, 0, 1],
+      fg         => [1.0, 1.0, 1.0],
+      active_fg  => [0.8, 0.8, 0.8],
       can_hover  => 1,
       align      => 0,
       valign     => 0,
@@ -2226,7 +2441,8 @@ sub _draw {
    glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE;
    glColor 0, 0, 0, 1;
 
-   $tex[0]->draw_quad_alpha (0, 0, $self->{w}, $self->{h});
+   my $tex = $tex[$GRAB == $self];
+   $tex->draw_quad_alpha (0, 0, $self->{w}, $self->{h});
 
    glDisable GL_TEXTURE_2D;
 
@@ -2293,7 +2509,7 @@ sub _draw {
 
    $self->SUPER::_draw;
 
-   glTranslate $self->{padding_x} + 0.375, $self->{padding_y} + 0.375, 0;
+   glTranslate $self->{padding_x}, $self->{padding_y}, 0;
 
    my ($w, $h) = @$self{qw(w h)};
 
@@ -2323,6 +2539,7 @@ sub new {
 
    my $self = $class->SUPER::new (
       can_events => 0,
+      scale      => 1,
       @_,
    );
 
@@ -2357,7 +2574,7 @@ sub STORABLE_attach {
 sub size_request {
    my ($self) = @_;
 
-   ($self->{tex}{w}, $self->{tex}{h})
+   (int $self->{tex}{w} * $self->{scale}, int $self->{tex}{h} * $self->{scale})
 }
 
 sub _draw {
@@ -2377,7 +2594,7 @@ sub _draw {
    glEnable GL_TEXTURE_2D;
    glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE;
 
-   $tex->draw_quad (0, 0, $w, $h);
+   $tex->draw_quad_alpha (0, 0, $w, $h);
 
    glDisable GL_TEXTURE_2D;
 }
@@ -2406,6 +2623,12 @@ sub new {
       can_events => 1,
       @_
    );
+}
+
+sub invoke_button_down {
+   my ($self, $ev, $x, $y) = @_;
+
+   1
 }
 
 sub invoke_button_up {
@@ -2555,6 +2778,144 @@ sub _draw {
 
 #############################################################################
 
+package CFPlus::UI::Progress;
+
+our @ISA = CFPlus::UI::Label::;
+
+use CFPlus::OpenGL;
+
+sub new {
+   my ($class, %arg) = @_;
+
+   my $self = $class->SUPER::new (
+      fg         => [1, 1, 1],
+      bg         => [0, 0, 1, 0.2],
+      bar        => [0.7, 0.5, 0.1, 0.8],
+      outline    => [0.4, 0.3, 0],
+      fontsize   => 0.9,
+      valign     => 0,
+      align      => 0,
+      can_events => 1,
+      ellipsise  => 1,
+      label      => "%d%%",
+      %arg,
+   );
+
+   $self->set_value ($arg{value} || -1);
+
+   $self
+}
+
+sub set_label {
+   my ($self, $label) = @_;
+
+   return if $self->{label} eq $label;
+   $self->{label} = $label;
+
+   $self->CFPlus::UI::Progress::set_value (0 + delete $self->{value});
+}
+
+sub set_value {
+   my ($self, $value) = @_;
+
+   if ($self->{value} ne $value) {
+      $self->{value} = $value;
+
+      if ($value < 0) {
+         $self->set_text ("-");
+      } else {
+         $self->set_text (sprintf $self->{label}, $value * 100);
+      }
+
+      $self->update;
+   }
+}
+
+sub _draw {
+   my ($self) = @_;
+
+   glEnable GL_BLEND;
+   glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
+
+   if ($self->{value} >= 0) {
+      my $s = int 2 + ($self->{w} - 4) * $self->{value};
+
+      glColor_premultiply @{$self->{bar}};
+      glRect  2, 2,             $s, $self->{h} - 2;
+      glColor_premultiply @{$self->{bg}};
+      glRect $s, 2, $self->{w} - 2, $self->{h} - 2;
+   }
+
+   glColor_premultiply @{$self->{outline}};
+   glRect_lineloop 1.5, 1.5, $self->{w} - 1.5, $self->{h} - 1.5;
+
+   glDisable GL_BLEND;
+
+   {
+      local $self->{bg}; # do not draw background
+      $self->SUPER::_draw;
+   }
+}
+
+#############################################################################
+
+package CFPlus::UI::ExperienceProgress;
+
+our @ISA = CFPlus::UI::Progress::;
+
+sub new {
+   my ($class, %arg) = @_;
+
+   my $self = $class->SUPER::new (
+      tooltip => sub {
+         my ($self) = @_;
+
+         sprintf "level %d\n%s points\n%s next level\n%s to go",
+            $self->{lvl},
+            ::formsep ($self->{exp}),
+            ::formsep ($self->{nxt}),
+            ::formsep ($self->{nxt} - $self->{exp}),
+      },
+      %arg
+   );
+
+   $::CONN->{on_exp_update}{$self+0} = sub { $self->set_value ($self->{value}) }
+      if $::CONN;
+
+   $self
+}
+
+sub DESTROY {
+   my ($self) = @_;
+
+   delete $::CONN->{on_exp_update}{$self+0}
+      if $::CONN;
+
+   $self->SUPER::DESTROY;
+}
+
+sub set_value {
+   my ($self, $lvl, $exp) = @_;
+
+   $self->{lvl} = $lvl;
+   $self->{exp} = $exp;
+
+   my $v = -1;
+
+   if ($::CONN && (my $table = $::CONN->{exp_table})) {
+      my $l0 = $table->[$lvl - 1];
+      my $l1 = $table->[$lvl];
+
+      $self->{nxt} = $l1;
+
+      $v = ($exp - $l0) / ($l1 - $l0);
+   }
+
+   $self->SUPER::set_value ($v);
+}
+
+#############################################################################
+
 package CFPlus::UI::Gauge;
 
 our @ISA = CFPlus::UI::VBox::;
@@ -2689,7 +3050,9 @@ sub invoke_button_down {
 
    $self->{click} = [$self->{range}[0], $self->{vertical} ? $y : $x];
    
-   $self->invoke_mouse_motion ($ev, $x, $y)
+   $self->invoke_mouse_motion ($ev, $x, $y);
+
+   1
 }
 
 sub invoke_mouse_motion {
@@ -2719,7 +3082,7 @@ sub invoke_mouse_wheel {
 
    $self->set_value ($self->{range}[0] + $delta * $self->{range}[3] * $pagepart);
 
-   ! ! $delta
+   1
 }
 
 sub update {
@@ -2860,7 +3223,7 @@ sub set_fontsize {
 sub size_request {
    my ($self) = @_;
 
-   my ($empty, $slider) = @{ $self->{children} };
+   my ($empty, $slider) = $self->visible_children;
 
    local $self->{children} = [$empty, $slider];
    $self->SUPER::size_request
@@ -3059,6 +3422,7 @@ sub update {
                my $layout = $self->get_layout ($para);
 
                $layout->render ($para->{indent}, $y - $y0);
+               $layout->draw;
 
                if (my @w = @{ $para->{widget} }) {
                   my @s = $layout->get_shapes;
@@ -3190,23 +3554,24 @@ sub new {
 sub set_tooltip_from {
    my ($self, $widget) = @_;
 
-   $widget->{tooltip} = CFPlus::Pod::section_label tooltip => $1
-      if $widget->{tooltip} =~ /^#(.*)$/;
-
-   my $tooltip = $widget->{tooltip};
+   my $tip = $widget->{tooltip};
+   $tip = $tip->($widget) if "CODE" eq ref $tip;
+               
+   $tip = CFPlus::Pod::section_label tooltip => $1
+      if $tip =~ /^#(.*)$/;
 
    if ($ENV{CFPLUS_DEBUG} & 2) {
-      $tooltip .= "\n\n" . (ref $widget) . "\n"
-                . "$widget->{x} $widget->{y} $widget->{w} $widget->{h}\n"
-                . "req $widget->{req_w} $widget->{req_h}\n"
-                . "visible $widget->{visible}";
+      $tip .= "\n\n" . (ref $widget) . "\n"
+            . "$widget->{x} $widget->{y} $widget->{w} $widget->{h}\n"
+            . "req $widget->{req_w} $widget->{req_h}\n"
+            . "visible $widget->{visible}";
    }
 
-   $tooltip =~ s/^\n+//;
-   $tooltip =~ s/\n+$//;
+   $tip =~ s/^\n+//;
+   $tip =~ s/\n+$//;
 
    $self->add (new CFPlus::UI::Label
-      markup    => $tooltip,
+      markup    => $tip,
       max_w     => ($widget->{tooltip_width} || 0.25) * $::WIDTH,
       fontsize  => 0.8,
       style     => 1, # FLAG_INVERSE
@@ -3254,27 +3619,15 @@ sub invoke_visibility_change {
 sub _draw {
    my ($self) = @_;
 
-   glTranslate 0.375, 0.375;
-
    my ($w, $h) = @$self{qw(w h)};
 
    glColor 1, 0.8, 0.4;
-   glBegin GL_QUADS;
-   glVertex 0 , 0;
-   glVertex 0 , $h;
-   glVertex $w, $h;
-   glVertex $w, 0;
-   glEnd;
+   glRect 0, 0, $w, $h;
    
    glColor 0, 0, 0;
-   glBegin GL_LINE_LOOP;
-   glVertex 0 , 0;
-   glVertex 0 , $h;
-   glVertex $w, $h;
-   glVertex $w, 0;
-   glEnd;
+   glRect_lineloop .5, .5, $w + .5, $h + .5;
    
-   glTranslate 2 - 0.375, 2 - 0.375;
+   glTranslate 2, 2;
 
    $self->SUPER::_draw;
 }
@@ -3291,6 +3644,8 @@ sub new {
    my $class = shift;
 
    my $self = $class->SUPER::new (
+      size_w     => 32,
+      size_h     => 8,
       aspect     => 1,
       can_events => 0,
       @_,
@@ -3299,22 +3654,86 @@ sub new {
    if ($self->{anim} && $self->{animspeed}) {
       CFPlus::weaken (my $widget = $self);
 
+      $widget->{animspeed} = List::Util::max 0.05, $widget->{animspeed};
+      $widget->{anim_start} = $self->{animspeed} * int Event::time / $self->{animspeed};
       $self->{timer} = Event->timer (
-         at       => $self->{animspeed} * int $::NOW / $self->{animspeed},
-         hard     => 1,
-         interval => $self->{animspeed},
+         parked   => 1,
          cb       => sub {
-            ++$widget->{frame};
-            $widget->update;
+            return unless $::CONN;
+
+            my $w = $widget
+               or return;
+
+            ++$w->{frame};
+            $w->update_face;
+
+            # somehow, $widget can go away
+            $w->update;
+            $w->update_timer;
          },
       );
+
+      $self->update_face;
+      $self->update_timer;
    }
    
    $self
 }
 
+sub update_timer {
+   my ($self) = @_;
+
+   return unless $self->{timer};
+
+   if ($self->{visible}) {
+      $self->{timer}->at (
+         $self->{anim_start}
+         + $self->{animspeed}
+           * int 1.5 + (Event::time - $self->{anim_start}) / $self->{animspeed}
+      );
+      $self->{timer}->start;
+   } else {
+      $self->{timer}->stop;
+   }
+}
+
+sub update_face {
+   my ($self) = @_;
+
+   if ($::CONN) {
+      if (my $anim = $::CONN->{anim}[$self->{anim}]) {
+         if ($anim && @$anim) {
+            $self->{face} = $anim->[ $self->{frame} % @$anim ];
+            delete $self->{face_change_cb};
+
+            if (my $tex = $self->{tex} = $::CONN->{texture}[ $::CONN->{face}[$self->{face}]{id} ]) {
+               unless ($tex->{name} || $tex->{loading}) {
+                  $tex->upload (sub { $self->reconfigure });
+               }
+            }
+         }
+      }
+   }
+}
+
 sub size_request {
-   (32, 8)
+   my ($self) = @_;
+
+   if ($::CONN) {
+      if (my $faceid = $::CONN->{face}[$self->{face}]{id}) {
+         if (my $tex = $self->{tex} = $::CONN->{texture}[$faceid]) {
+            if ($tex->{name}) {
+               return ($self->{size_w} || $tex->{w}, $self->{size_h} || $tex->{h});
+            } elsif (!$tex->{loading}) {
+               $tex->upload (sub { $self->reconfigure });
+            }
+         }
+
+         $self->{face_change_cb} ||= $::CONN->on_face_change ($self->{face}, sub { $self->reconfigure });
+      }
+   }
+
+   ($self->{size_w} || 8, $self->{size_h} || 8)
 }
 
 sub update {
@@ -3325,25 +3744,20 @@ sub update {
    $self->SUPER::update;
 }
 
+sub invoke_visibility_change {
+   my ($self) = @_;
+
+   $self->update_timer;
+
+   0
+}
+
 sub _draw {
    my ($self) = @_;
 
-   return unless $::CONN;
-
    $self->SUPER::_draw;
 
-   my $face;
-
-   if ($self->{frame}) {
-      my $anim = $::CONN->{anim}[$self->{anim}];
-
-      $face = $anim->[ $self->{frame} % @$anim ]
-         if $anim && @$anim;
-   }
-   
-   my $tex = $::CONN->{texture}[$::CONN->{faceid}[$face || $self->{face}]];
-
-   if ($tex) {
+   if (my $tex = $self->{tex}) {
       glEnable GL_TEXTURE_2D;
       glTexEnv GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE;
       glColor 0, 0, 0, 1;
@@ -3355,7 +3769,7 @@ sub _draw {
 sub destroy {
    my ($self) = @_;
 
-   $self->{timer}->cancel
+   (delete $self->{timer})->cancel
       if $self->{timer};
 
    $self->SUPER::destroy;
@@ -3405,7 +3819,7 @@ sub new {
                   (new CFPlus::UI::Label markup => $right, align => +1),
                ],
             ;
-               
+
          } else {
             $widget = new CFPlus::UI::Label
                can_hover  => 1,
@@ -3540,36 +3954,85 @@ sub _draw {
 
 package CFPlus::UI::Notebook;
 
+use CFPlus::OpenGL;
+
 our @ISA = CFPlus::UI::VBox::;
 
 sub new {
    my $class = shift;
 
    my $self = $class->SUPER::new (
-      buttonbar   => (new CFPlus::UI::Buttonbar),
-      multiplexer => (new CFPlus::UI::Multiplexer expand => 1),
+      buttonbar      => (new CFPlus::UI::Buttonbar),
+      multiplexer    => (new CFPlus::UI::Multiplexer expand => 1),
+      active_outline => [.7, .7, 0.2],
       # filter => # will be put between multiplexer and $self
       @_,
    );
-   
+
    $self->{filter}->add ($self->{multiplexer}) if $self->{filter};
    $self->SUPER::add ($self->{buttonbar}, $self->{filter} || $self->{multiplexer});
+
+   {
+      Scalar::Util::weaken (my $wself = $self);
+
+      $self->{multiplexer}->connect (c_add => sub {
+         my ($mplex, $widgets) = @_;
+
+         for my $child (@$widgets) {
+            Scalar::Util::weaken $child;
+            $child->{c_tab_} ||= do {
+               my $tab =
+                  (UNIVERSAL::isa $child->{c_tab}, "CFPlus::UI::Base")
+                     ? $child->{c_tab}
+                     : new CFPlus::UI::Button markup => $child->{c_tab}[0], tooltip => $child->{c_tab}[1];
+
+               $tab->connect (activate => sub {
+                  $wself->set_current_page ($child);
+               });
+
+               $tab
+            };
+
+            $self->{buttonbar}->add ($child->{c_tab_});
+         }
+      });
+
+      $self->{multiplexer}->connect (c_remove => sub {
+         my ($mplex, $widgets) = @_;
+
+         for my $child (@$widgets) {
+            $wself->{buttonbar}->remove ($child->{c_tab_});
+         }
+      });
+   }
 
    $self
 }
 
 sub add {
+   my ($self, @widgets) = @_;
+
+   $self->{multiplexer}->add (@widgets)
+}
+
+sub remove {
+   my ($self, @widgets) = @_;
+
+   $self->{multiplexer}->remove (@widgets)
+}
+
+sub pages {
+   my ($self) = @_;
+   $self->{multiplexer}->children
+}
+
+sub add_tab {
    my ($self, $title, $widget, $tooltip) = @_;
 
-   CFPlus::weaken $self;
+   $title = [$title, $tooltip] unless ref $title;
+   $widget->{c_tab} = $title;
 
-   $self->{buttonbar}->add (new CFPlus::UI::Button
-      markup      => $title,
-      tooltip     => $tooltip,
-      on_activate => sub { $self->set_current_page ($widget) },
-   );
-
-   $self->{multiplexer}->add ($widget);
+   $self->add ($widget);
 }
 
 sub get_current_page {
@@ -3583,6 +4046,26 @@ sub set_current_page {
 
    $self->{multiplexer}->set_current_page ($page);
    $self->emit (page_changed => $self->{multiplexer}{current});
+}
+
+sub _draw {
+   my ($self) = @_;
+
+   $self->SUPER::_draw ();
+
+   if (my $cur = $self->{multiplexer}{current}) {
+      if ($cur = $cur->{c_tab_}) {
+         glTranslate $self->{buttonbar}{x} + $cur->{x},
+                     $self->{buttonbar}{y} + $cur->{y};
+         glLineWidth 3;
+         #glEnable GL_BLEND;
+         #glBlendFunc GL_ONE, GL_ONE_MINUS_SRC_ALPHA;
+         glColor @{$self->{active_outline}};
+         glRect_lineloop 1.5, 1.5, $cur->{w} - 1.5, $cur->{h} - 1.5;
+         glLineWidth 1;
+         #glDisable GL_BLEND;
+      }
+   }
 }
 
 #############################################################################
@@ -3862,7 +4345,7 @@ sub coord2global {
 sub update {
    my ($self) = @_;
 
-   $::WANT_REFRESH++;
+   $::WANT_REFRESH->start;
 }
 
 sub add {
@@ -3909,7 +4392,7 @@ sub draw {
          for values %{delete $self->{refresh_hook}};
    }
 
-   if ($self->{realloc}) {
+   while ($self->{realloc}) {
       my %queue;
       my @queue;
       my $widget;
@@ -3966,40 +4449,37 @@ sub draw {
 
          delete $self->{realloc}{$widget+0};
        }
-   }
 
-   while (my $size_alloc = delete $self->{size_alloc}) {
-      my @queue = sort { $b->{visible} <=> $a->{visible} }
-                       values %$size_alloc;
+      while (my $size_alloc = delete $self->{size_alloc}) {
+         my @queue = sort { $a->{visible} <=> $b->{visible} }
+                          values %$size_alloc;
 
-      while () {
-         my $widget = pop @queue || last;
+         while () {
+            my $widget = pop @queue || last;
 
-         my ($w, $h) = @$widget{qw(alloc_w alloc_h)};
+            my ($w, $h) = @$widget{qw(alloc_w alloc_h)};
 
-         $w = 0 if $w < 0;
-         $h = 0 if $h < 0;
-
-         $w = max $widget->{min_w}, $w;
-         $h = max $widget->{min_h}, $h;
+            $w = max $widget->{min_w}, $w;
+            $h = max $widget->{min_h}, $h;
 
 #         $w = min $self->{w} - $widget->{x}, $w if $self->{w};
 #         $h = min $self->{h} - $widget->{y}, $h if $self->{h};
 
-         $w = min $widget->{max_w}, $w if exists $widget->{max_w};
-         $h = min $widget->{max_h}, $h if exists $widget->{max_h};
+            $w = min $widget->{max_w}, $w if exists $widget->{max_w};
+            $h = min $widget->{max_h}, $h if exists $widget->{max_h};
 
-         $w = int $w + 0.5;
-         $h = int $h + 0.5;
+            $w = int $w + 0.5;
+            $h = int $h + 0.5;
 
-         if ($widget->{w} != $w || $widget->{h} != $h || delete $widget->{force_size_alloc}) {
-            $widget->{old_w} = $widget->{w};
-            $widget->{old_h} = $widget->{h};
+            if ($widget->{w} != $w || $widget->{h} != $h || delete $widget->{force_size_alloc}) {
+               $widget->{old_w} = $widget->{w};
+               $widget->{old_h} = $widget->{h};
 
-            $widget->{w} = $w;
-            $widget->{h} = $h;
+               $widget->{w} = $w;
+               $widget->{h} = $h;
 
-            $widget->emit (size_allocate => $w, $h);
+               $widget->emit (size_allocate => $w, $h);
+            }
          }
       }
    }
@@ -4008,7 +4488,6 @@ sub draw {
       $_->()
          for values %{delete $self->{post_alloc_hook}};
    }
-
 
    glViewport 0, 0, $::WIDTH, $::HEIGHT;
    glClearColor +($::CFG->{fow_intensity}) x 3, 1;

@@ -41,7 +41,7 @@ sub update_items {
       $row++;
    }
 
-   $self->add (@adds);
+   $self->add_at (@adds);
 }
 
 sub set_sort_order {

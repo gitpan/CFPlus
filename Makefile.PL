@@ -22,7 +22,7 @@ print <<EOF;
 *** HINT: Debian/Ubuntu users might have luck with:
 *** apt-get install perl libpango1.0-dev libglib2.0-dev libsdl1.2-dev
 *** apt-get install libevent-perl libsdl-mixer1.2-dev libsdl-image1.2-dev
-*** apt-get install libberkeleydb-perl
+*** apt-get install libberkeleydb-perl libwww-perl libdb4.4-dev
 *** apt-get install anyevent-perl
 
 EOF
@@ -55,15 +55,17 @@ WriteMakefile(
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
        BerkeleyDB    => 0.27,
-       Crossfire     => 0.98,
+       Crossfire     => 1.0,
        Time::HiRes   => 0,
        Event         => 1.07,
        AnyEvent      => 0,
        Compress::LZF => 1.6,
        Pod::POM      => 0.15,
+       LWP           => 0,
+       JSON::XS      => 1.5,
     },
     depend    => {
-       "CFPlus.o" => 'glfunc.h pangoopengl.h pango-font.c pango-fontmap.c pango-render.c texcache.c',
+       "CFPlus.o" => 'glfunc.h pangoopengl.h pango-font.c pango-fontmap.c pango-render.c texcache.c rendercache.c',
     },
     clean     => { FILES => 'docwiki.pst' },
     PM => {
@@ -73,8 +75,12 @@ WriteMakefile(
        'CFPlus/Texture.pm'            => '$(INST_LIBDIR)/CFPlus/Texture.pm',
        'CFPlus/DB.pm'                 => '$(INST_LIBDIR)/CFPlus/DB.pm',
        'CFPlus/UI.pm'                 => '$(INST_LIBDIR)/CFPlus/UI.pm',
+       'CFPlus/UI/Canvas.pm'          => '$(INST_LIBDIR)/CFPlus/UI/Canvas.pm',
        'CFPlus/UI/Inventory.pm'       => '$(INST_LIBDIR)/CFPlus/UI/Inventory.pm',
        'CFPlus/UI/SpellList.pm'       => '$(INST_LIBDIR)/CFPlus/UI/SpellList.pm',
+       'CFPlus/UI/Canvas.pm'          => '$(INST_LIBDIR)/CFPlus/UI/Canvas.pm',
+       'CFPlus/UI/ChatView.pm'        => '$(INST_LIBDIR)/CFPlus/UI/ChatView.pm',
+       'CFPlus/UI/MessageWindow.pm'   => '$(INST_LIBDIR)/CFPlus/UI/MessageWindow.pm',
        'CFPlus/Item.pm'               => '$(INST_LIBDIR)/CFPlus/Item.pm',
        'CFPlus/Pod.pm'                => '$(INST_LIBDIR)/CFPlus/Pod.pm',
        'CFPlus/MapWidget.pm'          => '$(INST_LIBDIR)/CFPlus/MapWidget.pm',

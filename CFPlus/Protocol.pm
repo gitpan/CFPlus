@@ -12,8 +12,6 @@ use CFPlus::Pod;
 use CFPlus::Macro;
 use CFPlus::Item;
 
-use Crossfire::Protocol::Base 0.95;
-
 use base 'Crossfire::Protocol::Base';
 
 sub new {
@@ -23,7 +21,9 @@ sub new {
       setup_req => {
          extmap => 1,
          excmd  => 1,
+         #xwidget2 => 1,#d#
          %{$arg{setup_req} || {}},
+         msg    => 0,
       },
    );
 
@@ -49,20 +49,23 @@ sub new {
    } sort { $a->{par} <=> $b->{par} }
           CFPlus::Pod::find command => "*";
 
-   $self->connect_ext (event_capabilities => sub {
-      my ($cap) = @_;
-
-      if (my $ts = $cap->{tileset}) {
-         if (my ($default) = grep $_->[2] & 1, @$ts) {
-            $self->{tileset} = $default;
-            $self->{tilesize} = $default->[3];
-            $self->setup_req (tileset => $default->[0]);
-
-            my $w = int $self->{mapw} * 32 / $self->{tilesize};
-            my $h = int $self->{maph} * 32 / $self->{tilesize};
-
-            $self->setup_req (mapsize => "${w}x${h}");
+   $self->{json_coder}
+      ->convert_blessed
+      ->filter_json_single_key_object ("\fw" => sub {
+         $self->{widget}{$_[0]}
+      })
+      ->filter_json_single_key_object ("\fc" => sub {
+         my ($id) = @_;
+         sub {
+            $self->send_exti_msg (w_e => $id, @_);
          }
+      });
+
+   # destroy widgets on logout
+   $self->{on_stop_game_guard} = $self->{map_widget}{root}->connect (stop_game => sub {
+      for my $ws (values %{delete $self->{widgetset} || {}}) {
+         $_->destroy
+            for values %{delete $ws->{w} || {}};
       }
    });
 
@@ -89,26 +92,212 @@ sub new {
    $self
 }
 
+sub update_fx_want {
+   my ($self) = @_;
+
+   $self->send_exti_msg (fx_want => {
+      3 => !!$::CFG->{bgm_enable},   # FT_MUSIC
+      5 => !!$::CFG->{audio_enable}, # FT_SOUND
+      6 => 1,                        # FT_RSRC
+   });
+}
+
+sub ext_capabilities {
+   my ($self, %cap) = @_;
+
+   #$self->send ("setup sound 0"); # we use a different protocol
+   $self->update_fx_want;
+
+   $self->send_exti_req (resource => "exp_table", sub {
+      my ($exp_table) = @_;
+
+      $self->register_face_handler ($exp_table, sub {
+         my ($face) = @_;
+
+         $self->{exp_table} = $self->{json_coder}->decode (delete $face->{data});
+         $_->() for values %{ $self->{on_exp_update} || {} };
+      });
+
+      ()
+   });
+
+   if (my $ts = $cap{tileset}) {
+      if (my ($default) = grep $_->[2] & 1, @$ts) {
+         $self->{tileset} = $default;
+         $self->{tilesize} = $default->[3];
+         $self->setup_req (tileset => $default->[0]);
+
+         my $w = int $self->{mapw} * 32 / $self->{tilesize};
+         my $h = int $self->{maph} * 32 / $self->{tilesize};
+
+         $self->setup_req (mapsize => "${w}x${h}");
+      }
+   }
+}
+
+sub ext_ambient_music {
+   my ($self, $songs) = @_;
+   &::audio_music_set_ambient ($songs);
+}
+
+#############################################################################
+
+sub widget_associate {
+   my ($self, $ws, $id, $widget) = @_;
+
+   $widget ||= new CFPlus::UI::Bin;
+
+   $widget->{s_id} = $id;
+   $self->{widget}{$id} = $widget;
+
+   if ($ws) {
+      $widget->{s_ws} = $ws;
+      $self->{widgetset}{$ws}{w}{$id} = $widget;
+   }
+
+   $widget->connect (on_destroy => sub {
+      my ($widget) = @_;
+
+      delete $self->{widget}{$widget->{s_id}};
+      delete $self->{widgetset}{$widget->{s_ws}}{$widget->{s_id}}
+         if exists $widget->{s_ws};
+   });
+}
+
+# widgetset new
+sub ext_ws_n {
+   my ($self, $id) = @_;
+
+   $self->{widgetset}{$id} = {
+      w => {},
+   };
+}
+
+# widgetset destroy
+sub ext_ws_d {
+   my ($self, $id) = @_;
+
+   my $ws = delete $self->{widgetset}{$id}
+      or return;
+
+   $_->destroy
+      for values %{$ws->{w}};
+}
+
+# widgetset create
+sub ext_ws_c {
+   my ($self, $ws, $id, $class, $args) = @_;
+
+   $self->widget_associate (
+      $ws, $id => scalar eval {
+         local $SIG{__DIE__};
+         "CFPlus::UI::$class"->new (%$args)
+      }
+   );
+}
+
+# widgetset associate
+sub ext_ws_a {
+   my ($self, %ass) = @_;
+
+   # everything that has a name, wether conceivably useful or not
+   my %wkw = (
+      root           => $CFPlus::UI::ROOT,
+      tooltip        => $CFPlus::UI::TOOLTIP,
+
+      mapwidget      => $::MAPWIDGET,
+      buttonbar      => $::BUTTONBAR,
+      metaserver     => $::METASERVER,
+      buttonbar      => $::BUTTONBAR,
+      login_button   => $::LOGIN_BUTTON,
+      quit_dialog    => $::QUIT_DIALOG,
+      host_entry     => $::HOST_ENTRY,
+      metaserver     => $::METASERVER,
+      server_info    => $::SERVER_INFO,
+
+      setup_dialog   => $::SETUP_DIALOG,
+      setup_notebook => $::SETUP_NOTEBOOK,
+      setup_server   => $::SETUP_SERVER,
+      setup_keyboard => $::SETUP_KEYBOARD,
+
+      pl_notebook    => $::PL_NOTEBOOK,
+      pl_window      => $::PL_WINDOW,
+      inventory_page => $::INVENTORY_PAGE,
+      stats_page     => $::STATS_PAGE,
+      skill_page     => $::SKILL_PAGE,
+      spell_page     => $::SPELL_PAGE,
+      spell_list     => $::SPELL_LIST,
+
+      floorbox       => $::FLOORBOX,
+      help_window    => $::HELP_WINDOW,
+      message_window => $::MESSAGE_WINDOW,
+      statusbox      => $::SDTATUSBOX,
+
+      inv            => $::INV,
+      invr           => $::INVR,
+      invr_hb        => $::INVR_HB,
+   );
+
+   while (my ($id, $name) = each %ass) {
+      $self->widget_associate (undef, $id => $wkw{$name});
+   }
+}
+
+# widget call
+sub ext_w_c {
+   my ($self, $id, $rcb, $method, @args) = @_;
+
+   my $w = $self->{widget}{$id}
+      or return;
+
+   if ($rcb) {
+      $rcb->($w->$method (@args));
+   } else {
+      $w->$method (@args);
+   }
+}
+
+# widget set
+sub ext_w_s {
+   my ($self, $id, $attr) = @_;
+
+   my $w = $self->{widget}{$id}
+      or return;
+
+   for (my $i = 0; $i < $#$attr; $i += 2) {
+      my ($member, $value) = @$attr[$i, $i+1];
+      if (defined $value) {
+         $w->{$member} = $value;
+      } else {
+         delete $w->{$member};
+      }
+      $w->{parent}->realloc if $member =~ /^c_/ && $w->{visible};
+   }
+}
+
+# widget get
+sub ext_w_g {
+   my ($self, $id, $rid, @attr) = @_;
+
+   my $w = $self->{widget}{$id}
+      or return;
+
+   $self->send_exti_msg (w_e => $rid, map $w->{$_}, @attr);
+}
+
+# message window
+sub ext_channel_info {
+   my ($self, $info) = @_;
+   $self->{channels}->{$info->{id}} = $info;
+   $::MESSAGE_WINDOW->add_channel ($info);
+}
+
+#############################################################################
+
 sub logprint {
    my ($self, @a) = @_;
 
-   $self->{log_fh} ||= do {
-      my $path = "$Crossfire::VARDIR/log.$self->{host}";
-
-      open my $fh, ">>:utf8", $path
-         or die "Couldn't open logfile $path: $!";
-
-      $fh->autoflush (1);
-
-      $fh;
-   };
-
-   my ($sec, $min, $hour, $mday, $mon, $year) = localtime time;
-
-   my $ts = sprintf "%04d-%02d-%02d %02d:%02d:%02d",
-               $year + 1900, $mon + 1, $mday, $hour, $min, $sec;
-
-   print {$self->{log_fh}} "$ts ", @a, "\n";
+   CFPlus::DB::logprint "$Crossfire::VARDIR/log.$self->{host}" => (join "", @a), sub { };
 }
 
 sub _stat_numdiff {
@@ -202,7 +391,7 @@ sub stats_update {
       my @diffs = map $_->[1]->($self, $_->[2], $prev->{$_->[0]}, $stats->{$_->[0]}), @statchange
    ) {
       my $msg = "<b>stat change</b>: " . (join " ", @diffs);
-      $self->{statusbox}->add ($msg, group => "stat $msg", fg => [0.8, 1, 0.2, 1], timeout => 10);
+      $self->{statusbox}->add ($msg, group => "stat $msg", fg => [0.8, 1, 0.2, 1], timeout => 20);
    }
 
    $self->update_stats_window ($stats, $prev);
@@ -251,6 +440,7 @@ sub update_stats_window {
    $::GAUGES->{grace}   ->set_value ($gr, $gr_m);
    $::GAUGES->{exp}     ->set_text ("Exp: " . (::formsep ($stats->{+CS_STAT_EXP64}))
                                     . " (lvl " . ($stats->{+CS_STAT_LEVEL} * 1) . ")");
+   $::GAUGES->{prg}     ->set_value ($stats->{+CS_STAT_LEVEL}, $stats->{+CS_STAT_EXP64});
    $::GAUGES->{range}   ->set_text ($stats->{+CS_STAT_RANGE});
    my $title = $stats->{+CS_STAT_TITLE};
    $title =~ s/^Player: //;
@@ -278,15 +468,28 @@ sub update_stats_window {
    my $sktbl = $::STATWIDS->{skill_tbl};
    my @skills = keys %{ $self->{skill_info} };
 
-   if (grep +(exists $stats->{$_}) != (exists $prev->{$_}), @skills) {
+   my @order = sort { $stats->{$b->[0]}[1] <=> $stats->{$a->[0]}[1] or $a->[1] cmp $b->[1] }
+               map [$_, $self->{skill_info}{$_}],
+               grep exists $stats->{$_},
+               @skills;
+  
+   if ($self->{stat_order} ne join ",", map $_->[0], @order) {
+      $self->{stat_order} = join ",", map $_->[0], @order;
+
       $sktbl->clear;
 
-      $sktbl->add (0, 0, new CFPlus::UI::Label text => "Experience", align => 1);
-      $sktbl->add (1, 0, new CFPlus::UI::Label text => "Lvl.", align => 1);
-      $sktbl->add (2, 0, new CFPlus::UI::Label text => "Skill", expand => 1);
-      $sktbl->add (3, 0, new CFPlus::UI::Label text => "Experience", align => 1);
-      $sktbl->add (4, 0, new CFPlus::UI::Label text => "Lvl.", align => 1);
-      $sktbl->add (5, 0, new CFPlus::UI::Label text => "Skill", expand => 1);
+      my $sw = $self->{skillwid}{""} ||= [
+         0, 0, (new CFPlus::UI::Label text => "Experience", align => 1),
+         1, 0, (new CFPlus::UI::Label text => "Lvl.", align => 1),
+         2, 0, (new CFPlus::UI::Label text => "Progress", align => 0),
+         3, 0, (new CFPlus::UI::Label text => "Skill", expand => 1),
+         4, 0, (new CFPlus::UI::Label text => "Experience", align => 1),
+         5, 0, (new CFPlus::UI::Label text => "Lvl.", align => 1),
+         6, 0, (new CFPlus::UI::Label text => "Progress", align => 0),
+         7, 0, (new CFPlus::UI::Label text => "Skill", expand => 1),
+      ];
+
+      my @add = @$sw;
 
       my $TOOLTIP_ALL = "\n\n<small>Left click - ready skill\nMiddle click - use spell\nRight click - further options</small>";
 
@@ -294,12 +497,7 @@ sub update_stats_window {
       my @TOOLTIP_EXP  = (tooltip => "<b>Experience</b>. The experience points you have in this skill.$TOOLTIP_ALL", can_events => 1, can_hover => 1);
 
       my ($x, $y) = (0, 1);
-      for (
-         sort { $stats->{$b->[0]}[1] <=> $stats->{$a->[0]}[1] or $a->[1] cmp $b->[1] }
-         map [$_, $self->{skill_info}{$_}],
-         grep exists $stats->{$_},
-           @skills
-      ) {
+      for (@order) {
          my ($idx, $name) = @$_;
 
          my $spell_cb = sub {
@@ -324,28 +522,49 @@ sub update_stats_window {
             1
          };
 
-         $sktbl->add ($x * 3 + 0, $y, $self->{stat_widget_exp}{$idx} = new CFPlus::UI::Label
-            text => "0", align => 1, font => $::FONT_FIXED, fg => [1, 1, 0], on_button_down => $spell_cb, @TOOLTIP_EXP);
-         $sktbl->add ($x * 3 + 1, $y, $self->{stat_widget_lvl}{$idx} = new CFPlus::UI::Label
-            text => "0", align => 1, font => $::FONT_FIXED, fg => [0, 1, 0], padding_x => 4, on_button_down => $spell_cb, @TOOLTIP_LVL);
-         $sktbl->add ($x * 3 + 2, $y, new CFPlus::UI::Label text => $name, on_button_down => $spell_cb,
-                      can_events => 1, can_hover => 1, tooltip => (CFPlus::Pod::section_label skill_description => $name) . $TOOLTIP_ALL);
+         my $sw = $self->{skillwid}{$idx} ||= [
+            # exp
+            (new CFPlus::UI::Label
+             align => 1, font => $::FONT_FIXED, fg => [1, 1, 0], on_button_down => $spell_cb, @TOOLTIP_EXP),
+
+            # level
+            (new CFPlus::UI::Label
+             text => "0", align => 1, font => $::FONT_FIXED, fg => [0, 1, 0], padding_x => 4, on_button_down => $spell_cb, @TOOLTIP_LVL),
+
+            # progress
+            (new CFPlus::UI::ExperienceProgress),
+
+            # label
+            (new CFPlus::UI::Label text => $name, on_button_down => $spell_cb,
+             can_events => 1, can_hover => 1, tooltip => (CFPlus::Pod::section_label skill_description => $name) . $TOOLTIP_ALL),
+         ];
+
+         push @add,
+            $x * 4 + 0, $y, $sw->[0],
+            $x * 4 + 1, $y, $sw->[1],
+            $x * 4 + 2, $y, $sw->[2],
+            $x * 4 + 3, $y, $sw->[3],
+         ;
 
          $x++ and ($x, $y) = (0, $y + 1);
       }
+
+      $sktbl->add_at (@add);
    }
 
-   for (grep exists $stats->{$_}, @skills) {
-      $self->{stat_widget_exp}{$_}->set_text (::formsep ($stats->{$_}[1]));
-      $self->{stat_widget_lvl}{$_}->set_text ($stats->{$_}[0] * 1);
-   }
-}
+   for (@order) {
+      my ($idx, $name) = @$_;
+      my $val = $stats->{$idx};
 
-sub macro_send {
-   my ($self, $macro) = @_;
+      next if $prev->{$idx}[1] eq $val->[1];
 
-   for my $cmd (@{ $macro->{action} }) {
-      $self->send_command ($cmd);
+      my $sw = $self->{skillwid}{$idx};
+      $sw->[0]->set_text (::formsep ($val->[1]));
+      $sw->[1]->set_text ($val->[0] * 1);
+      $sw->[2]->set_value (@$val);
+
+      $::GAUGES->{sklprg}->set_label ("$name %d%%");
+      $::GAUGES->{sklprg}->set_value (@$val);
    }
 }
 
@@ -357,7 +576,6 @@ sub user_send {
 
    $self->logprint ("send: ", $command);
    $self->send_command ($command);
-   ::status ($command);
 }
 
 sub record {
@@ -375,8 +593,37 @@ sub map_scroll {
 sub feed_map1a {
    my ($self, $data) = @_;
 
-   $self->{map}->map1a_update ($data, $self->{setup}{extmap});
-   $self->{map_widget}->update;
+   my $missing = $self->{map}->map1a_update ($data, $self->{setup}{extmap});
+   my $delay;
+
+   for my $tile (@$missing) {
+      next if $self->{delay}{$tile};
+
+      $delay = 1;
+
+      if (my $tex = $::CONN->{texture}[$tile]) {
+         $tex->upload;
+      } else {
+         $self->{delay}{$tile} = 1;
+
+         # we assume the face is in-flight and will eventually come
+         push @{$self->{tile_cb}{$tile}}, sub {
+            delete $self->{delay}{$tile};
+            $_[0]->upload;
+         };
+      }
+   }
+
+   if ($delay) {
+      # delay the map drawing a tiny bit in the hope of getting the missing fetched
+      Event->timer (after => 0.03, cb => sub {
+         $_[0]->w->cancel;
+         $self->{map_widget}->update
+            if $self->{map_widget};
+      });
+   } else {
+      $self->{map_widget}->update;
+   }
 }
 
 sub magicmap {
@@ -393,9 +640,9 @@ sub flush_map {
 
    my ($hash, $x, $y, $w, $h) = @$map_info;
 
-   my $data = $self->{map}->get_rect ($x, $y, $w, $h);
-   CFPlus::DB::put $self->{mapcache} => $hash => Compress::LZF::compress $data, sub { };
-   #warn sprintf "SAVEmap[%s] length %d\n", $hash, length $data;#d#
+   my $data = Compress::LZF::compress $self->{map}->get_rect ($x, $y, $w, $h);
+   $self->{map_cache_new}{$hash} = \$data;
+   CFPlus::DB::put $self->{mapcache} => $hash => $data, sub { };
 }
 
 sub map_clear {
@@ -411,20 +658,22 @@ sub map_clear {
 sub bg_fetch {
    my ($self) = @_;
 
-   my $id;
+   my $tile;
    
    do {
-      $id = pop @{$self->{bg_fetch}}
+      $tile = pop @{$self->{bg_fetch}}
          or return;
-   } while $self->{texture}[$id];
+   } while $self->{texture}[$tile];
 
-   CFPlus::DB::get tilecache => $id, sub {
+   CFPlus::DB::get tilecache => $tile, sub {
       my ($data) = @_;
 
       return unless $self->{map}; # stop when destroyed
 
-      $self->set_texture ($id => $data)
-         if defined $data;
+      if (defined $data) {
+         $self->have_tile ($tile, $data);
+         $self->{texture}[$tile]->upload;
+      }
 
       $self->bg_fetch;
    };
@@ -435,20 +684,27 @@ sub load_map($$$) {
 
    my $gen = $self->{map_change_gen};
 
-   CFPlus::DB::get $self->{mapcache} => $hash, sub {
+   my $cb = sub {
       return unless $gen == $self->{map_change_gen};
 
       my ($data) = @_;
 
       if (defined $data) {
-         $data = Compress::LZF::decompress $data;
-         #warn sprintf "LOADmap[%s,%d,%d] length %d\n", $hash, $x, $y, length $data;#d#
+         $self->{map_cache_new}{$hash} = \$data;
+
+         my $data = Compress::LZF::decompress $data;
 
          my $inprogress = @{ $self->{bg_fetch} || [] };
          unshift @{ $self->{bg_fetch} }, $self->{map}->set_rect ($x, $y, $data);
          $self->bg_fetch unless $inprogress;
       }
    };
+
+   if (my $rdata = $self->{map_cache_old}{$hash}) {
+      $cb->($$rdata);
+   } else {
+      CFPlus::DB::get $self->{mapcache} => $hash, $cb;
+   }
 }
 
 # hardcode /world/world_xxx_xxx map names, the savings are enourmous,
@@ -551,6 +807,7 @@ sub map_change {
    $self->flush_map;
 
    ++$self->{map_change_gen};
+   $self->{map_cache_old} = delete $self->{map_cache_new};
 
    my ($ox, $oy) = ($::MAP->ox, $::MAP->oy);
 
@@ -579,25 +836,63 @@ sub map_change {
 sub face_find {
    my ($self, $facenum, $face, $cb) = @_;
 
-   my $hash = "$face->{chksum},$face->{name}";
+   if ($face->{type} == 0) { # FT_FACE
+      my $id = CFPlus::DB::get_tile_id_sync $face->{name};
 
-   my $id = CFPlus::DB::get_tile_id_sync $hash;
+      $face->{id} = $id;
+      $self->{map}->set_tileid ($facenum => $id);
 
-   $face->{id}               = $id;
-   $self->{faceid}[$facenum] = $id;
+      CFPlus::DB::get tilecache => $id, $cb;
 
-   $self->{map}->set_tileid ($facenum => $id);
+   } elsif ($face->{type} & 1) { # with metadata
+      CFPlus::DB::get res_meta => $face->{name}, $cb;
 
-   CFPlus::DB::get tilecache => $id, $cb;
+   } else { # no metadata
+      CFPlus::DB::get res_data => $face->{name}, $cb;
+   }
 }
 
 sub face_update {
    my ($self, $facenum, $face, $changed) = @_;
 
-   CFPlus::DB::put tilecache => $face->{id} => $face->{image}, sub { }
-      if $changed;
+   if ($face->{type} == 0) {
+      # image, FT_FACE
+      CFPlus::DB::put tilecache => $face->{id} => $face->{data}, sub { }
+         if $changed;
 
-   $self->set_texture ($face->{id} => delete $face->{image});
+      $self->have_tile ($face->{id}, delete $face->{data});
+
+   } elsif ($face->{type} & 1) {
+      # split metadata case, FT_MUSIC, FT_SOUND
+      if ($changed) { # new data
+         my ($meta, $data) = unpack "(w/a*)*", $face->{data};
+         $face->{data} = $meta;
+
+         # rely on strict ordering here and also on later fetch
+         CFPlus::DB::put res_data => $face->{name} => $data, sub { };
+         CFPlus::DB::put res_meta => $face->{name} => $meta, sub { };
+      }
+
+      $face->{data} = $self->{json_coder}->decode ($face->{data});
+      ::add_license ($face);
+      ::message ({ markup => CFPlus::asxml "downloaded resource '$face->{data}{name}', type $face->{type}." })
+         if $changed;
+
+      if ($face->{type} == 3) { # FT_MUSIC
+         &::audio_music_push ($facenum);
+      } elsif ($face->{type} == 5) { # FT_SOUND
+         &::audio_sound_push ($facenum);
+      }
+
+   } else {
+      # flat resource case, FT_RSRC
+      CFPlus::DB::put res_data => $face->{name} => $face->{data}, sub { }
+         if $changed;
+   }
+
+   if (my $cbs = $self->{face_cb}{$facenum}) {
+      $_->($face, $changed) for @$cbs;
+   }
 }
 
 sub smooth_update {
@@ -606,21 +901,58 @@ sub smooth_update {
    $self->{map}->set_smooth ($facenum, $face->{smoothface}, $face->{smoothlevel});
 }
 
-sub set_texture {
-   my ($self, $id, $data) = @_;
+sub have_tile {
+   my ($self, $tile, $data) = @_;
 
-   $self->{texture}[$id] = my $tex =
-      new_from_image CFPlus::Texture
-         $data, minify => 1, mipmap => 1;
+   return unless $self->{map};
 
-   $self->{map}->set_texture ($id, @$tex{qw(name w h s t)}, @{$tex->{minified}});
-   $self->{map_widget}->update;
+   my $tex = $self->{texture}[$tile] ||=
+      new CFPlus::Texture
+         tile => $tile,
+         image => $data, delete_image => 1,
+         minify => 1, mipmap => 1;
+
+   if (my $cbs = delete $self->{tile_cb}{$tile}) {
+      $_->($tex) for @$cbs;
+   }
+}
+
+# call in non-void context registers a temporary
+# hook with handle, otherwise its permanent
+sub on_face_change {
+   my ($self, $num, $cb) = @_;
+
+   push @{$self->{face_cb}{$num}}, $cb;
+
+   defined wantarray
+      ? CFPlus::guard {
+           @{$self->{face_cb}{$num}}
+              = grep $_ != $cb,
+                   @{$self->{face_cb}{$num}};
+        }
+      : ()
+}
+
+# call in non-void context registers a temporary
+# hook with handle, otherwise its permanent
+sub register_face_handler {
+   my ($self, $num, $cb) = @_;
+
+   return unless $num;
+
+   # invoke if available right now
+   $cb->($self->{face}[$num], 0)
+      unless exists $self->{face}[$num]{loading};
+
+   # future changes
+   $self->on_face_change ($num => $cb)
 }
 
 sub sound_play {
-   my ($self, $x, $y, $soundnum, $type) = @_;
+   my ($self, $type, $face, $dx, $dy, $vol) = @_;
 
-   $self->{sound_play}->($x, $y, $soundnum, $type);
+   &::audio_sound_play ($face, $dx, $dy, $vol)
+      unless $type & 1; # odd types are silent for future expansion
 }
 
 my $LAST_QUERY; # server is stupid, stupid, stupid
@@ -632,6 +964,25 @@ sub query {
    $LAST_QUERY = $prompt;
 
    $self->{query}-> ($self, $flags, $prompt);
+}
+
+sub sanitise_xml($) {
+   local $_ = shift;
+
+   # we now weed out all tags we do not support
+   s{ <(?! /?i> | /?u> | /?b> | /?big | /?small | /?s | /?tt | fg\ | /fg>)
+   }{
+      "&lt;"
+   }gex;
+
+   # now all entities
+   s/&(?!amp;|lt;|gt;|apos;|quot;|#[0-9]+;|#x[0-9a-fA-F]+;)/&amp;/g;
+
+   # handle some elements
+   s/<fg name='([^']*)'>(.*?)<\/fg>/<span foreground='$1'>$2<\/span>/gs;
+   s/<fg name="([^"]*)">(.*?)<\/fg>/<span foreground="$1">$2<\/span>/gs;
+
+   $_
 }
 
 our %NAME_TO_COLOR = (
@@ -669,6 +1020,8 @@ our @CF_COLOR = (
 sub msg {
    my ($self, $color, $type, $text, @extra) = @_;
 
+   $text = sanitise_xml $text;
+
    if (my $cb = $self->{cb_msg}{$type}) {
       $_->($self, $color, $type, $text, @extra) for values %$cb;
    } elsif ($type =~ /^(?:chargen-race-title|chargen-race-description)$/) {
@@ -678,21 +1031,34 @@ sub msg {
       $self->logprint ("msg: ", $text);
       return if $color < 0; # negative color == ignore if not understood
 
-      my $fg = $CF_COLOR[$color % @CF_COLOR];
+      my $fg = $CF_COLOR[$color & NDI_COLOR_MASK] || [1, 0, 0];
 
       ## try to create single paragraphs of multiple lines sent by the server
       # no longer neecssary with TRT servers
       #$text =~ s/(?<=\S)\n(?=\w)/ /g;
 
-      ::message ({ fg => $fg, markup => $_ })
-         for split /\n/, $text;
+      for (split /\n/, $text) {
+         ::message ({
+            fg     => $fg,
+            markup => $_,
+            type   => $type,
+            extra  => [@extra],
+            color_flags => $color, #d# ugly, kill
+         });
+
+         $color &= ~NDI_CLEAR; # only clear once for multiline messages
+         # actually, this is an ugly design. _we_ should control the channels,
+         # not some random other widget, as the channels are clearly protocol-specific.
+         # then we could also react to flags such as CLEAR without resorting to
+         # hacks such as color_flags, above.
+      }
 
       $self->{statusbox}->add ($text,
          group        => $text,
          fg           => $fg,
          timeout      => $color >= 2 ? 180 : 10,
          tooltip_font => $::FONT_FIXED,
-      );
+      ) if $type eq "info";
    }
 }
 
@@ -751,45 +1117,13 @@ sub eof {
    ::stop_game ();
 }
 
-sub image_info {
-   my ($self, $numfaces) = @_;
-
-   $self->{num_faces} = $numfaces;
-   $self->{face_prefetch} = [1 .. $numfaces];
-   $self->face_prefetch;
-}
-
-sub face_prefetch {
-   my ($self) = @_;
-
-   return unless $::CFG->{face_prefetch};
-
-   if ($self->{num_faces}) {
-      return if @{ $self->{send_queue} || [] };
-      my $todo = @{ $self->{face_prefetch} }
-         or return;
-
-      my ($face) = splice @{ $self->{face_prefetch} }, + rand @{ $self->{face_prefetch} }, 1, ();
-
-      $self->send ("requestinfo image_sums $face $face");
-
-      $self->{statusbox}->add (CFPlus::asxml "prefetching $todo",
-         group => "prefetch", timeout => 3, fg => [1, 1, 0, 0.5]);
-   } elsif (!exists $self->{num_faces}) {
-      $self->send ("requestinfo image_info");
-
-      $self->{num_faces} = 0;
-
-      $self->{statusbox}->add (CFPlus::asxml "starting to prefetch",
-         group => "prefetch", timeout => 3, fg => [1, 1, 0, 0.5]);
-   }
-}
-
 sub update_floorbox {
    $CFPlus::UI::ROOT->on_refresh ($::FLOORBOX => sub {
       return unless $::CONN;
 
       $::FLOORBOX->clear;
+
+      my @add;
 
       my $row;
       for (sort { $a->{count} <=> $b->{count} } values %{ $::CONN->{container}{$::CONN->{open_container} || 0} }) {
@@ -798,27 +1132,30 @@ sub update_floorbox {
             local $_->{desc_widget}; # hack to force recreation of widget
             CFPlus::Item::update_widgets $_;
 
-            $::FLOORBOX->add (0, $row, $_->{face_widget});
-            $::FLOORBOX->add (1, $row, $_->{desc_widget});
+            push @add,
+               0, $row, $_->{face_widget},
+               1, $row, $_->{desc_widget};
 
             $row++;
          } else {
-            $::FLOORBOX->add (1, $row, new CFPlus::UI::Button
+            push @add, 1, $row, new CFPlus::UI::Button
                text        => "More...",
                on_activate => sub { ::toggle_player_page ($::INVENTORY_PAGE); 0 },
-            );
+            ;
             last;
          }
       }
       if ($::CONN->{open_container}) {
-         $::FLOORBOX->add (1, $row++, new CFPlus::UI::Button
+         push @add, 1, $row++, new CFPlus::UI::Button
             text        => "Close container",
             on_activate => sub { $::CONN->send ("apply $::CONN->{open_container}") }
-         );
+         ;
       }
+
+      $::FLOORBOX->add_at (@add);
    });
 
-   $::WANT_REFRESH++;
+   $::WANT_REFRESH->start;
 }
 
 sub set_opencont {
@@ -826,17 +1163,16 @@ sub set_opencont {
    $conn->{open_container} = $tag;
    update_floorbox;
 
-   $::INV_RIGHT_HB->clear ();
-   $::INV_RIGHT_HB->add (new CFPlus::UI::Label align => 0, expand => 1, text => $name);
+   $::INVR_HB->clear ();
+   $::INVR_HB->add (new CFPlus::UI::Label align => 0, expand => 1, text => $name);
 
    if ($tag != 0) { # Floor isn't closable, is it?
-      $::INV_RIGHT_HB->add (new CFPlus::UI::Button
+      $::INVR_HB->add (new CFPlus::UI::Button
          text     => "Close container",
          tooltip  => "Close the currently open container (if one is open)",
          on_activate => sub {
             $::CONN->send ("apply $tag") # $::CONN->{open_container}")
                if $tag != 0;
-            #if $CONN->{open_container} != 0;
             0
          },
       );
@@ -945,19 +1281,20 @@ sub update_server_info {
     . "map size $self->{mapw}×$self->{maph}\n"
    );
 
-   ::setup_build_button ($self->{editor_support}->{builder_ui});
 }
 
 sub logged_in {
    my ($self) = @_;
 
-   $self->send_ext_req (cfplus_support => version => 1, sub {
-      $self->{cfplus_ext} = $_[0]{version};
+   $self->send_ext_req (cfplus_support => version => 2, sub {
+      my (%msg) = @_;
+
+      $self->{cfplus_ext} = $msg{version};
       $self->update_server_info;
 
       if ($self->{cfplus_ext} >= 2) {
          $self->send_ext_req ("editor_support", sub {
-            $self->{editor_support} = $_[0];
+            $self->{editor_support} = { @_ };
             $self->update_server_info;
 
             0
@@ -975,27 +1312,18 @@ sub logged_in {
    $self->send_command ("pickup $::CFG->{pickup}");
 }
 
-sub buildat {
-   my ($self, $builditem, $x, $y) = @_;
-
-   if ($self->{cfplus_ext}) {
-      $self->send_ext_msg (builder_build => dx => $x, dy => $y, (ref ($builditem) eq 'HASH') ? %$builditem : (item => $builditem));
-   }
-}
-
 sub lookat {
    my ($self, $x, $y) = @_;
 
    if ($self->{cfplus_ext}) {
-      $self->send_ext_req (lookat => dx => $x, dy => $y, sub {
-         my ($msg) = @_;
+      $self->send_ext_req (lookat => $x, $y, sub {
+         my (%msg) = @_;
 
-         if (exists $msg->{npc_dialog}) {
+         if (exists $msg{npc_dialog}) {
             # start npc chat dialog
             $self->{npc_dialog} = new CFPlus::NPCDialog::
-               dx    => $x,
-               dy    => $y,
-               title => "$msg->{npc_dialog} (NPC)",
+               token => $msg{npc_dialog},
+               title => "$msg{npc_dialog}[0] (NPC)",
                conn  => $self,
             ;
          }
@@ -1012,6 +1340,8 @@ sub destroy {
       if $self->{npc_dialog};
 
    $self->SUPER::destroy;
+
+   %$self = ();
 }
 
 package CFPlus::NPCDialog;
@@ -1068,10 +1398,12 @@ sub new {
 
    $self->update_options;
 
-   $self->{id} = $self->{conn}->send_ext_req (
-      npc_dialog_begin => dx => $self->{dx}, dy => $self->{dy},
-      sub { $this && $this->feed (@_) }
-   );
+   $self->{id} = "npc-channel-" . $self->{conn}->token;
+   $self->{conn}->connect_ext ($self->{id} => sub {
+      $this->feed (@_) if $this;
+   });
+
+   $self->{conn}->send_ext_msg (npc_dialog_begin => $self->{id}, $self->{token});
 
    $self->{entry}->grab_focus;
 
@@ -1104,37 +1436,42 @@ sub update_options {
 }
 
 sub feed {
-   my ($self, $msg) = @_;
+   my ($self, $type, @arg) = @_;
 
    CFPlus::weaken $self;
 
-   if ($msg->{msgtype} eq "reply") {
-      $self->{kw}{$_} = 1 for @{$msg->{add_topics} || []};
-      $self->{kw}{$_} = 0 for @{$msg->{del_topics} || []};
+   if ($type eq "update") {
+      my (%info) = @arg;
 
-      my $text = "\n" . CFPlus::asxml $msg->{msg};
-      my $match = join "|", map "\\b\Q$_\E\\b", sort { (length $b) <=> (length $a) } keys %{ $self->{kw} };
-      my @link;
-      $text =~ s{
-         ($match)
-      }{
-         my $kw = $1;
-
-         push @link, new CFPlus::UI::Label
-            markup     => "<span foreground='#c0c0ff' underline='single'>$kw</span>",
-            can_hover  => 1,
-            can_events => 1,
-            padding_x  => 0,
-            padding_y  => 0,
-            on_button_up => sub {
-               $self->send ($kw);
-            };
-
-         "\x{fffc}"
-      }giex;
+      $self->{kw}{$_} = 1 for @{$info{add_topics} || []};
+      $self->{kw}{$_} = 0 for @{$info{del_topics} || []};
       
-      $self->{textview}->add_paragraph ({ markup => $text, widget => \@link });
-      $self->{textview}->scroll_to_bottom;
+      if (exists $info{msg}) {
+         my $text = "\n" . CFPlus::Protocol::sanitise_xml $info{msg};
+         my $match = join "|", map "\\b\Q$_\E\\b", sort { (length $b) <=> (length $a) } keys %{ $self->{kw} };
+         my @link;
+         $text =~ s{
+            ($match)
+         }{
+            my $kw = $1;
+
+            push @link, new CFPlus::UI::Label
+               markup     => "<span foreground='#c0c0ff' underline='single'>$kw</span>",
+               can_hover  => 1,
+               can_events => 1,
+               padding_x  => 0,
+               padding_y  => 0,
+               on_button_up => sub {
+                  $self->send ($kw);
+               };
+
+            "\x{fffc}"
+         }giex;
+         
+         $self->{textview}->add_paragraph ({ markup => $text, widget => \@link });
+         $self->{textview}->scroll_to_bottom;
+      }
+
       $self->update_options;
    } else {
       $self->destroy;
@@ -1149,7 +1486,7 @@ sub send {
    $self->{textview}->add_paragraph ({ markup => "\n" . CFPlus::asxml $msg });
    $self->{textview}->scroll_to_bottom;
 
-   $self->{conn}->send_ext_msg (npc_dialog_tell => msgid => $self->{id}, msg => $msg);
+   $self->{conn}->send_ext_msg (npc_dialog_tell => $self->{id}, $msg);
 }
 
 sub destroy {
@@ -1158,7 +1495,7 @@ sub destroy {
    #Carp::cluck "debug\n";#d# #todo# enable: destroy gets called twice because scalar keys {} is 1
 
    if ($self->{conn}) {
-      $self->{conn}->send_ext_msg (npc_dialog_end => msgid => $self->{id}) if $self->{id};
+      $self->{conn}->send_ext_msg (npc_dialog_end => $self->{id}) if $self->{id};
       delete $self->{conn}{npc_dialog};
       $self->{conn}->disconnect_ext ($self->{id});
    }

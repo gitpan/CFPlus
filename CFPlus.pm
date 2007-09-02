@@ -17,7 +17,7 @@ package CFPlus;
 use Carp ();
 
 BEGIN {
-   $VERSION = '0.98';
+   $VERSION = '0.99';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
@@ -30,12 +30,7 @@ use Pod::POM ();
 use File::Path ();
 use Storable (); # finally
 use Fcntl ();
-
-BEGIN {
-   use Crossfire::Protocol::Base ();
-   *to_json   = \&Crossfire::Protocol::Base::to_json;
-   *from_json = \&Crossfire::Protocol::Base::from_json;
-}
+use JSON::XS qw(to_json from_json);
 
 =item guard { BLOCK }
 

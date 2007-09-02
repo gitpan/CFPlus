@@ -6,12 +6,10 @@
    for file in \
       resources/*.png			\
       resources/fonts/*.ttf		\
-      resources/sounds/*.wav		\
-      resources/sounds/*.ogg		\
-      resources/sounds/config		\
       resources/music/*.ogg		\
       resources/ui/resist/*.png		\
       resources/pod/*.png		\
+      resources/pod/*.jpg		\
       resources/arch/*.png		\
       pod/*.pod
    do

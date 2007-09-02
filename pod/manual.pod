@@ -57,19 +57,32 @@ The following keys are available in the playing area:
 
 =item B<Tab> - toggle (make visible/invisible) the playerbook window.
 
+=item B<Left-Shift-Tab> - toggle (make visible/invisible) the message window.
+
 =item B<Spacebar> - apply the item below you (selected by the server, usually the topmost item).
 
-=item B<Return>, B<Enter> - examine the item below you (selected by the server, usually the topmost item).
+=item B<Return> - activate the currently-visible entry in the message window.
+
+=item B<Left-Alt-1..9> - activate the nth tab in the message window.
 
 =item B<,> (the comma) - take the item below you (selected by the server, usually the topmost item).
 
-=item Cursor/Arrow Keys, Keypad-B<12346789> - try to move in the given direction.
+=item Cursor/Arrow Keys, Keypad-B<12346789> - directional movement/attack.
+
+If you press the Alt-Modifier together with a Cursor/Arrow-Key, then you
+will use the next direction counterclockwise, this gives you access to the
+diagonal directions on keyboards without a numeric keypad. This works together
+with other modifiers, too.
+
+=over 4
+
+=item B<Shift>-I<direction> - use your ranged weapon slot to attack the space indicated by the direction key.
+
+=item B<Ctrl>-I<direction> - run into the indicate direction as fast as possible, attacking everything in your way.
+
+=back
 
 =item Keypad-B<5> - use your current range slot on yourself or the space where you are standing.
-
-=item B<Shift>-I<direction> - use your current weapon to attack the space indicated by the direction key.
-
-=item B<Ctrl>-I<direction> - run into the indicate direction as fats as possible, attacking everything in your way.
 
 =item B<+>, Keypad-B<+> - rotate through your range weapons.
 
@@ -82,6 +95,14 @@ The following keys are available in the playing area:
 =item B<a>-B<z> (lowercase characters) - open the completer, presetting it with the character types.
 
 =item B<Ctrl>-B<Insert> - open the macro recorder/key binding editor and start recording.
+
+=item Keypad-B<enter> - examine item on floor.
+
+=item B<Left-Alt-s> - ready_skill find traps
+
+=item B<Left-Alt-d> - ready_skill disarm traps
+
+=item B<Left-Alt-p> - ready_skill praying
 
 =back
 
@@ -200,7 +221,7 @@ What these are is explained below:
 
 =head3 Statistics
 
-=for image sc_statistics.png
+=for image sc_statistics.jpg
 
 You can toggle this windows via B<F2>.
 
@@ -214,7 +235,7 @@ L<secondary statistics|glossary/secondary statistics> which is the group on the 
 
 =head3 Skills
 
-=for image sc_skill_list.png
+=for image sc_skill_list.jpg
 
 You can toggle this windows via B<F3>.
 
@@ -222,13 +243,13 @@ TBD
 
 =head3 Spellbook
 
-=for image sc_spellbook.png
+=for image sc_spellbook.jpg
 
 You can toggle this windows via B<F4>.
 
 =head3 X<playerbook_inventory>Inventory
 
-=for image sc_inventory.png
+=for image sc_inventory.jpg
 
 You can toggle this windows via B<F5>.
 
