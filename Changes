@@ -1,5 +1,8 @@
 Revision history for Perl extension CFPlus
 
+0.99a Mon Sep 17 20:18:06 CEST 2007
+	- include Dockable.pm in Makefile.PL.
+
 0.99  Sun Sep  2 10:48:08 CEST 2007
 	- much better compatibility to gl drivers that claim
           opengl 2.0 but then providing some features in software.

@@ -80,6 +80,7 @@ WriteMakefile(
        'CFPlus/UI/SpellList.pm'       => '$(INST_LIBDIR)/CFPlus/UI/SpellList.pm',
        'CFPlus/UI/Canvas.pm'          => '$(INST_LIBDIR)/CFPlus/UI/Canvas.pm',
        'CFPlus/UI/ChatView.pm'        => '$(INST_LIBDIR)/CFPlus/UI/ChatView.pm',
+       'CFPlus/UI/Dockable.pm'   => '$(INST_LIBDIR)/CFPlus/UI/Dockable.pm', #0.99a
        'CFPlus/UI/MessageWindow.pm'   => '$(INST_LIBDIR)/CFPlus/UI/MessageWindow.pm',
        'CFPlus/Item.pm'               => '$(INST_LIBDIR)/CFPlus/Item.pm',
        'CFPlus/Pod.pm'                => '$(INST_LIBDIR)/CFPlus/Pod.pm',
