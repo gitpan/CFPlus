@@ -621,6 +621,8 @@ BOOT:
 	const_iv (KMOD_NUM),
 	const_iv (KMOD_CAPS),
 	const_iv (KMOD_MODE),
+
+        const_iv (MIX_DEFAULT_FORMAT),
 #	undef const_iv
   };
     
@@ -734,7 +736,7 @@ SDL_SetVideoMode (int w, int h, int rgb, int alpha, int fullscreen)
           {
             av_clear (texture_av);
 
-            SDL_WM_SetCaption ("Crossfire TRT Client " VERSION, "Crossfire TRT");
+            SDL_WM_SetCaption ("Deliantra MORPG Client " VERSION, "Deliantra");
 #define GL_FUNC(ptr,name) gl.name = (ptr)SDL_GL_GetProcAddress ("gl" # name);
 #include "glfunc.h"
 #undef GL_FUNC
@@ -830,10 +832,26 @@ poll_events ()
 }
 
 int
-Mix_OpenAudio (int frequency = 44100, int format = MIX_DEFAULT_FORMAT, int channels = 2, int chunksize = 1024)
+Mix_OpenAudio (int frequency = 44100, int format = MIX_DEFAULT_FORMAT, int channels = 2, int chunksize = 4096)
   	POSTCALL:
         Mix_HookMusicFinished (music_finished);
         Mix_ChannelFinished (channel_finished);
+
+void
+Mix_QuerySpec ()
+	PPCODE:
+{
+	int freq, channels;
+        Uint16 format;
+
+        if (Mix_QuerySpec (&freq, &format, &channels))
+          {
+            EXTEND (SP, 3);
+            PUSHs (sv_2mortal (newSViv (freq)));
+            PUSHs (sv_2mortal (newSViv (format)));
+            PUSHs (sv_2mortal (newSViv (channels)));
+          }
+}
 
 void
 Mix_CloseAudio ()

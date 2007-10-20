@@ -7,7 +7,7 @@ typemap
 
 mkmanifest
 
-bin/cfplus
+bin/deliantra
 bin/pod2wiki
 
 CFPlus.pm

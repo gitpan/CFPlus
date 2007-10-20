@@ -1,4 +1,4 @@
-=head1 Crossfire TRT Command ListingX<command>
+=head1 Deliantra Command ListingX<command>
 
 =head2 accept-invitation
 
@@ -437,8 +437,6 @@ The rest is information the mapper may or may not provide. Often, this is
 the mapper's name, email and map creation date as this example shows.
 
 =head2 maps
-
-[crossfire+]
 
    maps <mapname>
 
@@ -889,7 +887,7 @@ for this to work.
 
 =head2 time
 
-Shows the Crossfire in-game time, not the server time. It looks like this:
+Shows the Deliantra in-game time, not the server time. It looks like this:
 
    It is 52 minutes past 8 o'clock am, on the Day of the Bull
    The 2nd Day of the Month of the Frost Giant, Year 63
@@ -985,6 +983,6 @@ not be used when the opponent attacks with spells.
 Parts of this document were originally taken from the crossfire server
 help files with unknwon authors.
 
-Adapted for use by I<cfplus>, enhanced and corrected by Pippijn van
+Adapted for use by I<deliantra>, enhanced and corrected by Pippijn van
 Steenhoven and Marc A. Lehmann.
 

@@ -44,18 +44,18 @@ EOF
 
 WriteMakefile(
     dist	=> {
-	            PREOP	=> 'pod2text bin/cfplus | tee README >$(DISTVNAME)/README; chmod -R u=rwX,go=rX . ;',
+	            PREOP	=> 'pod2text bin/deliantra | tee README >$(DISTVNAME)/README; chmod -R u=rwX,go=rX . ;',
 	            COMPRESS	=> 'gzip -9v',
 	            SUFFIX	=> '.gz',
 	           },
     NAME => "CFPlus",
     INC => $INC,
     LIBS => [$LIBS],
-    EXE_FILES => [qw(bin/cfplus)],
+    EXE_FILES => [qw(bin/deliantra)],
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
        BerkeleyDB    => 0.27,
-       Crossfire     => 1.0,
+       Crossfire     => 1.1,
        Time::HiRes   => 0,
        Event         => 1.07,
        AnyEvent      => 0,
@@ -76,11 +76,11 @@ WriteMakefile(
        'CFPlus/DB.pm'                 => '$(INST_LIBDIR)/CFPlus/DB.pm',
        'CFPlus/UI.pm'                 => '$(INST_LIBDIR)/CFPlus/UI.pm',
        'CFPlus/UI/Canvas.pm'          => '$(INST_LIBDIR)/CFPlus/UI/Canvas.pm',
+       'CFPlus/UI/Dockable.pm'        => '$(INST_LIBDIR)/CFPlus/UI/Dockable.pm',
        'CFPlus/UI/Inventory.pm'       => '$(INST_LIBDIR)/CFPlus/UI/Inventory.pm',
        'CFPlus/UI/SpellList.pm'       => '$(INST_LIBDIR)/CFPlus/UI/SpellList.pm',
        'CFPlus/UI/Canvas.pm'          => '$(INST_LIBDIR)/CFPlus/UI/Canvas.pm',
        'CFPlus/UI/ChatView.pm'        => '$(INST_LIBDIR)/CFPlus/UI/ChatView.pm',
-       'CFPlus/UI/Dockable.pm'   => '$(INST_LIBDIR)/CFPlus/UI/Dockable.pm', #0.99a
        'CFPlus/UI/MessageWindow.pm'   => '$(INST_LIBDIR)/CFPlus/UI/MessageWindow.pm',
        'CFPlus/Item.pm'               => '$(INST_LIBDIR)/CFPlus/Item.pm',
        'CFPlus/Pod.pm'                => '$(INST_LIBDIR)/CFPlus/Pod.pm',

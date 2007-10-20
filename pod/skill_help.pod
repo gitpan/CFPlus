@@ -391,7 +391,7 @@ unique skill that can only be used by goblins.
 
 =head2 Associated and miscellaneous skills
 
-In Crossfire two types of skills exist; The first kind, "associated"
+In Deliantra, two types of skills exist; The first kind, "associated"
 skills, are those skills which are associated with a category of
 experience. The other kind of skill, "miscellaneous" skills, are not
 related to any experience category.

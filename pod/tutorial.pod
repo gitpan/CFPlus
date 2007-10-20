@@ -1,31 +1,17 @@
-=for image banner.png
+=head1 Deliantra Tutorial - An gentle introduction to the game client.
 
-=head1 CFPlus Tutorial - An gentle introduction to the game client.
+=head2 What's Deliantra - Basic Game Concepts
 
-=head2 What's Crossfire TRT - Basic Game Concepts
+#TODO: about.html
 
-In the words of Frank Tore Johansen, the author of the original Crossfire
-game:
-
-"Crossfire is a multi-player graphical arcade and adventure game made for
-the X Window System environment. It has certain flavours from other
-games, especially gauntlet and the rogue-like games. Any number of players
-can move around in their own window, finding and using items and battling
-monsters. They can choose to cooperate or compete in the same world."
-
-In the years of development that have followed, Crossfire has grown to
-encompass hundreds of monsters, thousands of maps to explore, an elaborate
-magic system, over 15 character types, a system of skills, and many, many
-artifacts and treasures.
-
-Crossfire TRT is freely distributed under the General (Affero)
+Deliantra is freely distributed under the General (Affero)
 Public License (GPL) and the code may be obtained from
-L<http://crossfire.schmorp.de/>.
+L<http://www.deliantra.net/>.
 
 =head1 Getting Started
 
-First of all, don't be daunted by the apparent complexity of Crossfire -
-in reality, Crossfire is quite easy to play and character generation is
+First of all, don't be daunted by the apparent complexity of Deliantra -
+in reality, Deliantra is quite easy to play and character generation is
 simple. Later on, when you have some experience playing the game, you may
 wish to read the full manual.
 
@@ -56,7 +42,7 @@ will get a server list:
 
 You can choose from the aviable servers there.
 (B<Note:> At the time of this writing (2006-07-23) only I<cf.schmorp.de> supports
-all features that are offered by CFPlus).
+all features that are offered by Deliantra).
 
 =item B<Username>
 
@@ -77,7 +63,7 @@ password or write it down at a safe place.
 
 One more note: it's not a good idea to use "real" passwords to your
 computer accounts! Doing so may make your system vulnerable to
-unscrupulous Crossfire server administrators.
+unscrupulous Deliantra server administrators.
 
 =back
 
@@ -143,7 +129,7 @@ its just a fact that some classes are easier to play than others.
 
 For beginning players, the "simple fighter" characters are the easiest
 to play successfully. The B<Dwarf>, B<Human>, and B<Warrior> are among
-good earlier choices. As you gain experience with using Crossfire+ you
+good earlier choices. As you gain experience with using Deliantra you
 may wish to branch out into other "fighter" characters such as the
 B<Thief> or B<Elf>, or try your hand at playing "spellcaster" characters
 like the B<Wizard>, B<Mage>, B<Cleric> or B<Priest>. The "exotic" races
@@ -325,7 +311,7 @@ on the hiscore list.
 
 =head2 How to create a new Character
 
-When you start up Crossfire, you will be asked for a character name and a
+When you start up Deliantra, you will be asked for a character name and a
 password (you may need to open the B<Server Setup> dialog for this using
 the button at the top of the screen). If you are playing for the first
 time, type any name you like; this will be your character name for the
@@ -337,7 +323,7 @@ password or write it down at a safe place.
 
 One more note: it's not a good idea to use "real" passwords to your
 computer accounts! Doing so may make your system vulnerable to
-unscrupulous Crossfire server administrators.
+unscrupulous Deliantra server administrators.
 
 Your next step will be to generate random (primary) stats for your
 character (to see the stats, you might have to open the B<Stats Window>
@@ -371,7 +357,7 @@ its just a fact that some classes are easier to play than others.
 
 For beginning players, the "simple fighter" characters are the easiest
 to play successfully. The B<Dwarf>, B<Human>, and B<Warrior> are among
-good earlier choices. As you gain experience with using Crossfire+ you
+good earlier choices. As you gain experience with using Deliantra you
 may wish to branch out into other "fighter" characters such as the
 B<Thief> or B<Elf>, or try your hand at playing "spellcaster" characters
 like the B<Wizard>, B<Mage>, B<Cleric> or B<Priest>. The "exotic" races
@@ -417,7 +403,7 @@ destroy valuable items.
 
 =head2 Tips on surviving
 
-Crossfire+ is populated with a wealth of different monsters. These monsters
+Deliantra is populated with a wealth of different monsters. These monsters
 can have varying immunities and attacktypes. In addition, some of them can
 be quite a bit smarter than others. It will be important for new players
 to learn the abilities of different monsters and learn just how much it

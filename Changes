@@ -1,7 +1,8 @@
 Revision history for Perl extension CFPlus
 
-0.99a Mon Sep 17 20:18:06 CEST 2007
-	- include Dockable.pm in Makefile.PL.
+0.995 Sat Oct 20 23:48:20 CEST 2007
+	- experimental widgets extension is now enabled in the release.
+        - enable tabs by default now.
 
 0.99  Sun Sep  2 10:48:08 CEST 2007
 	- much better compatibility to gl drivers that claim

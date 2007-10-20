@@ -24,6 +24,7 @@ our %DEFAULT_KEYMAP = (
    "f9"         => "!toggle-setup",
    (map +("LAlt-$_" => "!switch-tab $_"), 0..9),
    (map +("RAlt-$_" => "!switch-tab $_"), 0..9),
+   "LAlt-x"     => "!close-current-tab",
    "return"     => "!activate-chat",
    "."          => "!repeat-command",
 
@@ -32,6 +33,7 @@ our %DEFAULT_KEYMAP = (
    "enter"	=> "examine",
    "[+]"        => "rotateshoottype +",
    "[-]"        => "rotateshoottype -",
+   "LAlt-e"	=> "examine",
    "LAlt-s"	=> "ready_skill find traps",
    "LAlt-d"	=> "ready_skill disarm traps",
    "LAlt-p"	=> "ready_skill praying",
@@ -89,6 +91,7 @@ our %MACRO_FUNCTION = (
    "toggle-setup"         => sub { $::SETUP_DIALOG->toggle_visibility },
    "toggle-setup"         => sub { $::SETUP_DIALOG->toggle_visibility },
    "switch-tab"           => sub { $::MESSAGE_WINDOW->user_switch_to_page (0 + shift) },
+   "close-current-tab"    => sub { $::MESSAGE_WINDOW->close_current_tab },
    "activate-chat"        => sub { $::MESSAGE_WINDOW->activate_current },
    "repeat-command"       => sub {
       $::CONN->user_send ($::COMPLETER->{last_command})

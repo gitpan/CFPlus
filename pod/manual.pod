@@ -1,4 +1,4 @@
-=head1 CFPlus Manual
+=head1 Deliantra Manual
 
 =head2 Features
 
@@ -6,32 +6,31 @@
 
 =item Fullscreen Map
 
-CF+ can uses a fullscreen map, which greatly enhances how much of the
+Deliantra uses a fullscreen map, which greatly enhances how much of the
 game world you can see.
 
-=item Persistent Map Cache (Crossfire+ only)
+=item Persistent Map Cache
 
-CF+ can persistently cache all map data it received from the
+Deliantra can persistently cache all map data it received from the
 server. This not only allows it to display an overview map, but also
 ensures that once-explored areas will be available the next time you want
 to explore more.
 
 =item Hardware acceleration
 
-Unlike most Crossfire clients, CF+ take advantage of OpenGL hardware
-acceleration. Most modern graphics cards have difficulties with 2D
-acceleration, while 3D graphics is accelerated well.
+Deliantra can take advantage of OpenGL hardware acceleration. Most modern
+graphics cards have difficulties with 2D acceleration, while 3D graphics
+is accelerated well.
 
 =item No arbitrary limits
 
-Unlike other Crossfire clients, CF+ does not suffer from arbitrary
-limits (like a fixed amount of face numbers). There are still limits, but
-they are not arbitrarily low :)
+Deliantra does not suffer from arbitrary limits (like a fixed amount of
+face numbers). There are still limits, but they are not arbitrarily low :)
 
 =item High quality text rendering
 
 Although surprising at first, high quality text rendering is a real
-must have feature.  For this, CF+ leverages Παν語 (PanGo) to offer
+must have feature.  For this, Deliantra leverages Παν語 (PanGo) to offer
 real-world text output quality, so you can chat in 日本語 (japanese),
 ﺎﻠﻋﺮﺒﻳﺓ (arabic) or most any other language/script, as long
 as suitable fonts are installed.
@@ -64,6 +63,8 @@ The following keys are available in the playing area:
 =item B<Return> - activate the currently-visible entry in the message window.
 
 =item B<Left-Alt-1..9> - activate the nth tab in the message window.
+
+=item B<Left-Alt-x> - close the currently active tab in the message window.
 
 =item B<,> (the comma) - take the item below you (selected by the server, usually the topmost item).
 

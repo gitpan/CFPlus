@@ -1,9 +1,9 @@
 =head1 About this Program
 
-CF+ is free software, copylefted under the General Public License, below.
+The Deliantra MORPG Client is free software, copylefted under the General Public License, below.
 
 You can download the source and binary versions at
-http://crossfire.schmorp.de/ and/or http://software.schmorp.de/.
+http://www.deliantra.net/ and/or http://software.schmorp.de/.
 
 =head2 GNU GENERAL PUBLIC LICENSE
 
@@ -356,11 +356,11 @@ Public License instead of this License.
 
 =head1 Opening Song "In a Heartbeat"
 
-The Song "In a Heartbeat" that comes with CF+ was licensed from Kevin
-MacLeod (incompetech.com) under the Creative Commons Attribution 2.0
-License (http://creativecommons.org/licenses/by/2.0/).
+The Song "In a Heartbeat" that comes with the Deliantra Client was
+licensed from Kevin MacLeod (incompetech.com) under the Creative Commons
+Attribution 2.0 License (http://creativecommons.org/licenses/by/2.0/).
 
-Crossfire TRT servers might provide other songs during gameplay which have
+Deliantra servers might provide other songs during gameplay which have
 their own license.
 
 =head1 Sleepycat BerkeleyDB

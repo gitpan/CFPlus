@@ -144,6 +144,7 @@ our $SERVER_INFO;
 our $SETUP_DIALOG;
 our $SETUP_NOTEBOOK;
 our $SETUP_SERVER;
+our $SETUP_LOGIN;
 our $SETUP_KEYBOARD;
 
 our $PL_NOTEBOOK;
@@ -410,19 +411,25 @@ sub audio_music_finished {
 sub audio_init {
    if ($CFG->{audio_enable}) {
       $ENV{MIX_EFFECTSMAXSPEED} = 1;
-      $SDL_MIXER = !CFPlus::Mix_OpenAudio;
+      $SDL_MIXER = !CFPlus::Mix_OpenAudio
+         $CFG->{audio_hw_frequency},
+         CFPlus::MIX_DEFAULT_FORMAT,
+         $CFG->{audio_hw_channels},
+         $CFG->{audio_hw_chunksize};
 
-      unless ($SDL_MIXER) {
+      if ($SDL_MIXER) {
+         CFPlus::Mix_AllocateChannels $CFG->{audio_mix_channels};
+
+         audio_music_finished;
+      } else {
          status "Unable to open sound device: there will be no sound";
-         return;
       }
-
-      CFPlus::Mix_AllocateChannels 16;
-
-      audio_music_finished;
    } else {
       undef $SDL_MIXER;
    }
+
+   sub audio_tab_update;
+   audio_tab_update;
 }
 
 sub audio_shutdown {
@@ -722,8 +729,8 @@ sub start_game {
 }
 
 sub stop_game {
-   $LOGIN_BUTTON->set_text ("Login");
-   $SETUP_NOTEBOOK->set_current_page ($SETUP_SERVER);
+   $LOGIN_BUTTON->set_text ("Login / Register");
+   $SETUP_NOTEBOOK->set_current_page ($SETUP_LOGIN);
    $SETUP_DIALOG->show;
    $PL_WINDOW->hide;
    $SPELL_LIST->clear_spells;
@@ -892,6 +899,29 @@ sub graphics_setup {
    $vbox
 }
 
+our $AUDIO_HW_CHUNKSIZE;
+our $AUDIO_INFO;
+
+sub audio_tab_update {
+   my ($freq, $format, $chans) = CFPlus::Mix_QuerySpec;
+
+   $AUDIO_HW_CHUNKSIZE->set_options ([
+      [0, "default", "Use System Default"],
+      map {
+         my $ms = sprintf "%dms", 1000 * $_ / ($CFG->{audio_hw_frequency} || 22050);
+         [$_, $ms, "$ms ($_ samples)"],
+      } 256, 512, 1024, 2048, 4096, 8192, 16384, 32768
+   ]);
+
+   my $text = !$freq
+      ? "audio is off"
+      : "audio is enabled\n"
+      . "frequency (Hz): $freq\n"
+      . "channels: $chans";
+
+   $AUDIO_INFO->set_text ($text);
+}
+
 sub audio_setup {
    my $vbox = new CFPlus::UI::VBox;
 
@@ -903,12 +933,8 @@ sub audio_setup {
    $table->add_at (1, $row++, new CFPlus::UI::CheckBox
       state => $CFG->{audio_enable},
       tooltip => "<b>Master Audio Enable.</b> If enabled, sound effects and music will be played. If disabled, no audio will be used and the soundcard will not be opened.",
-      on_changed => sub { $CFG->{audio_enable} = $_[1]; 0 }
+      on_changed => sub { $CFG->{audio_enable} = $_[1]; 1 }
    );
-#   $table->add_at (0, 9, new CFPlus::UI::Label valign => 0, align => 1, text => "Effects Volume");
-#   $table->add_at (1, 8, new CFPlus::UI::Slider range => [$CFG->{effects_volume}, 0, 128, 1], on_changed => sub {
-#      $CFG->{effects_volume} = $_[1];
-#   });
 
    $table->add_at (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Sound Effects");
    $table->add_at (1, $row, new CFPlus::UI::CheckBox
@@ -917,14 +943,14 @@ sub audio_setup {
       on_changed => sub {
          $CFG->{effects_enable} = $_[1];
          $CONN->update_fx_want if $CONN;
-         0
+         1
       }
    );
    $table->add_at (2, $row++, new CFPlus::UI::Slider
       expand => 1, range => [$CFG->{effects_volume}, 0, 1, 0, 1/128],
       tooltip => "The relative volume of sound effects. Best audio quality is achieved if this "
                  . "is set highest (rightmost) and you use your operating system volume setting. Changes are instant.",
-      on_changed => sub { $CFG->{effects_volume} = $_[1]; 0 }
+      on_changed => sub { $CFG->{effects_volume} = $_[1]; 1 }
    );
 
    $table->add_at (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Background Music");
@@ -935,13 +961,80 @@ sub audio_setup {
          $CFG->{bgm_enable} = $_[1];
          $CONN->update_fx_want if $CONN;
          audio_music_push;
-         0
+         1
       }
    );
    $table->add_at (2, $row++, new CFPlus::UI::Slider
       expand => 1, range => [$CFG->{bgm_volume}, 0, 1, 0, 1/128],
       tooltip => "The volume of the background music. Changes are instant.",
       on_changed => sub { $CFG->{bgm_volume} = $_[1]; audio_music_update_volume; 0 }
+   );
+
+   $table->add_at (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Frequency");
+   $table->add_at (1, $row++, new CFPlus::UI::Selector
+      c_colspan => 2, expand => 1,
+      value => $CFG->{audio_hw_frequency},
+      options => [
+         [    0, "default" , "Use System Default"],
+         [11025, "11 kHz"  , "11kHz (low quality)"],
+         [22050, "22 kHz"  , "22kHz (reduced quality)"],
+         [44100, "44.1 kHz", "44.1kHz (cd quality)"],
+         [48000, "48 kHz"  , "48kHz (studio quality)"],
+      ],
+      tooltip => "The sampling frequency to use. Higher sounds better, but also more cpu-intensive and might cause stuttering.",
+      on_changed => sub {
+         $CFG->{audio_hw_frequency} = $_[1];
+         audio_tab_update;
+         1
+      }
+   );
+
+   $table->add_at (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Channels");
+   $table->add_at (1, $row++, new CFPlus::UI::Selector
+      c_colspan => 2, expand => 1,
+      value => $CFG->{audio_hw_channels},
+      options => [
+         [0, "default"      , "Use System Default"],
+         [1, "Mono"         , "Mono (single channel, low quality)"],
+         [2, "Stereo"       , "Stereo (dual channe, standard quality)"],
+         [4, "4 Ch Surround", "4 Channel Surround Sound (3d sound, high quality)"],
+         [6, "6 Ch Surround", "6 Channel Surround Sound (3d sound + center + lfe)"],
+      ],
+      tooltip => "The number of independent sound channels to use. Higher sounds better, but also more cpu-intensive and might cause stuttering.",
+      on_changed => sub {
+         $CFG->{audio_hw_channels} = $_[1];
+         audio_tab_update;
+         1
+      }
+   );
+
+   $table->add_at (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Latency");
+   $table->add_at (1, $row++, $AUDIO_HW_CHUNKSIZE = new CFPlus::UI::Selector
+      c_colspan => 2, expand => 1,
+      value => $CFG->{audio_hw_chunksize},
+      tooltip => "The guarenteed latency. Lower is better, but also more cpu-intensive and might cause stuttering. If music playback "
+                 . "is stuttering, increase this value. Values of 50-100ms are optimal.",
+      on_changed => sub {
+         $CFG->{audio_hw_chunksize} = $_[1];
+         audio_tab_update;
+         1
+      }
+   );
+
+   # should really be a slider
+   $table->add_at (0, $row, new CFPlus::UI::Label valign => 0, align => 1, text => "Mixer Voices");
+   $table->add_at (1, $row++, new CFPlus::UI::ValSlider
+      c_colspan => 2, expand => 1,
+      tooltip => "The number of simultaneous sound effects possible. Higher is better, but also more cpu-intensive and might cause stuttering.",
+      range => [$::CFG->{audio_mix_channels}, 4, 32, 0, 1],
+      template => ">= 99",
+      on_changed => sub {
+         my ($slider, $value) = @_;
+
+         $CFG->{audio_mix_channels} = $value
+            if $value;
+         1;
+      }
    );
 
    $table->add_at (1, $row++, new CFPlus::UI::Button
@@ -953,6 +1046,14 @@ sub audio_setup {
          0
       }
    );
+
+   $vbox->add (new CFPlus::UI::FancyFrame
+      expand => 1,
+      label => "Audio Info",
+      child => ($AUDIO_INFO = new CFPlus::UI::Label ellipsise => 0),
+   );
+
+   audio_tab_update;
 
    $vbox
 }
@@ -1256,7 +1357,6 @@ sub update_metaserver {
             "The current number of users logged in on the server.",
             "The hostname of the server.",
             "The time this server has been running without being restarted.",
-            "The server software version - a '+' indicates a Crossfire+ server.",
             "Short information about this server provided by its admins.",
          );
          my @col = qw(#Users Host Uptime Version Description);
@@ -1349,6 +1449,54 @@ sub metaserver_dialog {
    $dialog
 }
 
+sub login_setup {
+   my $vbox = new CFPlus::UI::VBox;
+
+   $vbox->add (new CFPlus::UI::FancyFrame
+      label => "Login Settings",
+      child => (my $table = new CFPlus::UI::Table expand => 1, col_expand => [0, 1]),
+   );
+
+   $table->add_at (0, 4, new CFPlus::UI::Label valign => 0, align => 1, text => "Username");
+   $table->add_at (1, 4, new CFPlus::UI::Entry
+      text => $CFG->{profile}{default}{user},
+      tooltip => "The name of your character on the server.",
+      on_changed => sub { my ($self, $value) = @_; $CFG->{profile}{default}{user} = $value; 1 }
+   );
+
+   $table->add_at (0, 5, new CFPlus::UI::Label valign => 0, align => 1, text => "Password");
+   $table->add_at (1, 5, new CFPlus::UI::Entry
+      text => $CFG->{profile}{default}{password},
+      hidden => 1,
+      tooltip => "The password for your character.",
+      on_changed => sub { my ($self, $value) = @_; $CFG->{profile}{default}{password} = $value; 1 }
+   );
+
+   $table->add_at (1, 11, $LOGIN_BUTTON = new CFPlus::UI::Button
+      expand => 1,
+      align => 0,
+      text => "Login / Register",
+      tooltip => "This button will either login to the account configured above or register a new account.",
+      on_activate => sub {
+         $CONN ? stop_game
+               : start_game;
+         1
+      },
+   );
+
+   $vbox->add (new CFPlus::UI::FancyFrame
+      label => "Registering",
+      min_h => 200,
+      child => (new CFPlus::UI::Label valign => -1, ellipsise => 0,
+                    markup =>
+                       "To register a new account, choose a username that hasn't been taken yet and "
+                     . "try to log-in. Follow the instructions in the Log tab in the message window.",
+               ),
+   );
+
+   $vbox
+}
+
 sub server_setup {
    my $vbox = new CFPlus::UI::VBox;
 
@@ -1356,16 +1504,18 @@ sub server_setup {
       label => "Connection Settings",
       child => (my $table = new CFPlus::UI::Table expand => 1, col_expand => [0, 1]),
    );
-   $table->add_at (0, 2, new CFPlus::UI::Label valign => 0, align => 1, text => "Host:Port");
 
+   my $row = 0;
+
+   $table->add_at (0, ++$row, new CFPlus::UI::Label valign => 0, align => 1, text => "Host:Port");
    {
-      $table->add_at (1, 2, my $vbox = new CFPlus::UI::VBox);
+      $table->add_at (1, $row, my $vbox = new CFPlus::UI::VBox);
 
       $vbox->add (
          $HOST_ENTRY = new CFPlus::UI::Entry
             expand => 1,
             text => $CFG->{profile}{default}{host},
-            tooltip => "The hostname or ip address of the Crossfire(+) server to connect to",
+            tooltip => "The hostname or ip address of the Deliantra server to connect to",
             on_changed => sub {
                my ($self, $value) = @_;
                $CFG->{profile}{default}{host} = $value;
@@ -1383,23 +1533,8 @@ sub server_setup {
       );
    }
 
-   $table->add_at (0, 4, new CFPlus::UI::Label valign => 0, align => 1, text => "Username");
-   $table->add_at (1, 4, new CFPlus::UI::Entry
-      text => $CFG->{profile}{default}{user},
-      tooltip => "The name of your character on the server",
-      on_changed => sub { my ($self, $value) = @_; $CFG->{profile}{default}{user} = $value; 1 }
-   );
-
-   $table->add_at (0, 5, new CFPlus::UI::Label valign => 0, align => 1, text => "Password");
-   $table->add_at (1, 5, new CFPlus::UI::Entry
-      text => $CFG->{profile}{default}{password},
-      hidden => 1,
-      tooltip => "The password for your character",
-      on_changed => sub { my ($self, $value) = @_; $CFG->{profile}{default}{password} = $value; 1 }
-   );
-
-   $table->add_at (0, 7, new CFPlus::UI::Label valign => 0, align => 1, text => "Map Size");
-   $table->add_at (1, 7, new CFPlus::UI::Slider
+   $table->add_at (0, ++$row, new CFPlus::UI::Label valign => 0, align => 1, text => "Map Size");
+   $table->add_at (1, $row, new CFPlus::UI::Slider
       force_w => 100,
       range => [$CFG->{mapsize}, 10, 100, 0, 1],
       tooltip => "This is the size of the portion of the map update the server sends you. "
@@ -1409,39 +1544,14 @@ sub server_setup {
       on_changed => sub { my ($self, $value) = @_; $CFG->{mapsize} = $self->{range}[0] = $value = int $value; 1 },
    );
 
-   $table->add_at (0, 8, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Rate");
-   $table->add_at (1, 8, new CFPlus::UI::Entry
+   $table->add_at (0, ++$row, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Rate");
+   $table->add_at (1, $row, new CFPlus::UI::Entry
       text => $CFG->{output_rate},
       tooltip => "The maximum bandwidth in bytes per second that the server should not exceed "
                . "when sending data. When 0 or unset, the server "
                . "default will be used, which is usually around 100kb/s. Most servers will "
                . "dynamically find an optimal rate, so adjust this only when necessary.",
       on_changed => sub { $CFG->{output_rate} = $_[1]; 1 },
-   );
-
-   $table->add_at (0, 9, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Count");
-   $table->add_at (1, 9, new CFPlus::UI::Entry
-      text => $CFG->{output_count},
-      tooltip => "Should be set to 1 unless you know what you are doing. This option is only used once at log-in.",
-      on_changed => sub { $CFG->{output_count} = $_[1]; 1 },
-   );
-
-   $table->add_at (0, 10, new CFPlus::UI::Label valign => 0, align => 1, text => "Output-Sync");
-   $table->add_at (1, 10, new CFPlus::UI::Entry
-      text => $CFG->{output_sync},
-      tooltip => "Should be set to 1 unless you know what you are doing. This option is only used once at log-in.",
-      on_changed => sub { $CFG->{output_sync} = $_[1]; 1 },
-   );
-
-   $table->add_at (1, 11, $LOGIN_BUTTON = new CFPlus::UI::Button
-      expand => 1,
-      align => 0,
-      text => "Login",
-      on_activate => sub {
-         $CONN ? stop_game
-               : start_game;
-         1
-      },
    );
 
    $vbox->add (new CFPlus::UI::FancyFrame
@@ -2031,7 +2141,7 @@ sub video_init {
       )->show;
 
       CFPlus::UI::Toplevel->new (
-         title     => "Map",
+         title     => "Minimap",
          name      => "mapmap",
          x         => 0,
          y         => $FONTSIZE + 8,
@@ -2074,8 +2184,10 @@ sub video_init {
       $SETUP_DIALOG->add ($SETUP_NOTEBOOK = new CFPlus::UI::Notebook expand => 1, debug => 1,
          filter => new CFPlus::UI::ScrolledWindow expand => 1, scroll_y => 1);
 
+      $SETUP_NOTEBOOK->add_tab (Login    => $SETUP_LOGIN = login_setup,
+         "Configure the server to play on, your username and password.");
       $SETUP_NOTEBOOK->add_tab (Server   => $SETUP_SERVER = server_setup,
-         "Configure the server to play on, your username, password and other server-related options.");
+         "Configure other server related options.");
       $SETUP_NOTEBOOK->add_tab (Client   => client_setup,
          "Configure various client-specific settings.");
       $SETUP_NOTEBOOK->add_tab (Graphics => graphics_setup,
@@ -2255,12 +2367,14 @@ $SIG{INT} = $SIG{TERM} = sub { exit };
       stat_fontsize       => 0.7,
       mapsize             => 100,
       audio_enable        => 1,
+      audio_hw_channels   => 0,
+      audio_hw_frequency  => 0,
+      audio_hw_chunksize  => 0,
+      audio_mix_channels  => 8,
       effects_enable      => 1,
       effects_volume      => 1,
       bgm_enable          => 1,
       bgm_volume          => 0.5,
-      output_sync         => 1,
-      output_count        => 1,
       output_rate         => "",
       pickup              => 0,
       inv_sort            => "mtime",
@@ -2273,7 +2387,7 @@ $SIG{INT} = $SIG{TERM} = sub { exit };
       $CFG->{$k} = $v unless exists $CFG->{$k};
    }
 
-   $CFG->{profile}{default}{host} ||= "crossfire.schmorp.de";
+   $CFG->{profile}{default}{host} ||= "gameserver.deliantra.net";
    $PROFILE = $CFG->{profile}{default};
 
    # convert old bindings (only default profile matters)
@@ -2353,7 +2467,7 @@ CFPlus::DB::Server::stop;
 
 =head1 NAME
 
-cfplus - A Crossfire TRT and Crossfire game client
+deliantra - A Deliantra MORPG game client
 
 =head1 SYNOPSIS
 
@@ -2361,7 +2475,7 @@ Just run it - no commandline arguments are supported.
 
 =head1 USAGE
 
-cfplus utilises OpenGL for all UI elements and the game. It is supposed to
+deliantra utilises OpenGL for all UI elements and the game. It is supposed to
 be used in fullscreen mode and interactively.
 
 =head1 DEBUGGING

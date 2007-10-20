@@ -362,6 +362,16 @@ sub set_size {
    $self->realloc;
 }
 
+# traverse the widget chain up to find the maximum "physical" size constraints
+sub get_max_wh {
+   my ($self) = @_;
+
+   return $self->{parent}->get_max_wh
+      if $self->{parent};
+
+   ($::WIDTH, $::HEIGHT)
+}
+
 sub size_request {
    require Carp;
    Carp::confess "size_request is abstract";
@@ -819,7 +829,6 @@ sub invoke_size_allocate {
 }
 
 #############################################################################
-
 # back-buffered drawing area
 
 package CFPlus::UI::Window;
@@ -1378,6 +1387,15 @@ sub add {
 
 sub border {
    int $_[0]{border} * $::FONTSIZE
+}
+
+sub get_max_wh {
+   my ($self) = @_;
+
+   return ($self->{w}, $self->{h})
+      if $self->{visible} && $self->{w};
+
+   $self->SUPER::get_max_wh
 }
 
 sub size_request {
@@ -1944,8 +1962,10 @@ sub size_request {
    my ($self) = @_;
 
    $self->{size_req} ||= do {
+      my ($max_w, $max_h) = $self->get_max_wh;
+
       $self->{layout}->set_font ($self->{font}) if $self->{font};
-      $self->{layout}->set_width ($self->{max_w} || -1);
+      $self->{layout}->set_width ($self->{max_w} || $max_w || -1);
       $self->{layout}->set_ellipsise ($self->{ellipsise});
       $self->{layout}->set_single_paragraph_mode ($self->{ellipsise});
       $self->{layout}->set_height ($self->{fontsize} * $::FONTSIZE);
@@ -4107,12 +4127,13 @@ sub invoke_button_down {
 sub _set_value {
    my ($self, $value) = @_;
 
-   my ($item) = grep $_->[0] eq $value, @{ $self->{options} }
+   my ($item) = grep $_->[0] eq $value, @{ $self->{options} };
+   $item ||= $self->{options}[0]
       or return;
 
    $self->{value} = $item->[0];
    $self->set_markup ("$item->[1] ⇓");
-   $self->set_tooltip ($item->[2]);
+#   $self->set_tooltip ($item->[2]);
 }
 
 sub set_value {
@@ -4122,6 +4143,13 @@ sub set_value {
 
    $self->_set_value ($value);
    $self->emit (changed => $value);
+}
+
+sub set_options {
+   my ($self, $options) = @_;
+
+   $self->{options} = $options;
+   $self->_set_value ($self->{value});
 }
 
 #############################################################################

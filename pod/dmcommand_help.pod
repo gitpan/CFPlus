@@ -1,4 +1,4 @@
-=head1 Crossfire TRT Dungeon Master Commands
+=head1 Deliantra Dungeon Master Commands
 
 The following commands are only available to you if you are dungeon
 master, that is, a kind of server administrator with special privileges.
@@ -252,8 +252,8 @@ This will change a players diety to the diety specified.
 
    shutdown 
 
-This will cause a Crossfire TRT server to shut down entirely by first
-kicking out all players, saving all maps and finally exiting. Crossfire
+This will cause a Deliantra server to shut down entirely by first
+kicking out all players, saving all maps and finally exiting. Deliantra
 servers will kick out players and might or might not save some players or
 maps.
 

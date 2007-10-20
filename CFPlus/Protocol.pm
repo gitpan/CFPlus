@@ -21,9 +21,8 @@ sub new {
       setup_req => {
          extmap => 1,
          excmd  => 1,
-         #xwidget2 => 1,#d#
+         xwidget2 => 1,#d#
          %{$arg{setup_req} || {}},
-         msg    => 0,
       },
    );
 
@@ -1306,8 +1305,6 @@ sub logged_in {
 
    $self->update_server_info;
 
-   $self->send_command ("output-sync $::CFG->{output_sync}");
-   $self->send_command ("output-count $::CFG->{output_count}");
    $self->send_command ("output-rate $::CFG->{output_rate}") if $::CFG->{output_rate} > 0;
    $self->send_command ("pickup $::CFG->{pickup}");
 }

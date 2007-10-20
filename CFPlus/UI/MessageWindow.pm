@@ -94,23 +94,31 @@ sub add_chat {
    );
    $b->connect (activate => sub {
       my $b = shift;
-
-      my @chld = $nb->pages;
-      my $cur = pop @chld;
-      while (@chld && $cur != $cv) {
-         $cur = pop @chld;
-      }
-      $cur = pop @chld;
-      $nb->remove ($cv);
-      $nb->set_current_page ($cur);
-
-      delete $chatviews->{$id};
+      $self->close_chatview ($cv);
       0
    });
 
    my $preadd = $nb->get_current_page;
    $nb->add ($cv);
    $nb->set_current_page ($preadd);
+}
+
+sub close_chatview {
+   my ($self, $cv) = @_;
+   return unless defined $cv->{_chat_id};
+
+   my $chatviews = $self->{chatviews};
+   my $nb = $self->{nb};
+   my @chld = $nb->pages;
+   my $cur = pop @chld;
+   while (@chld && $cur != $cv) {
+      $cur = pop @chld;
+   }
+   $cur = pop @chld;
+   $nb->remove ($cv);
+   $nb->set_current_page ($cur);
+
+   delete $chatviews->{$cv->{_chat_id}};
 }
 
 sub touch_channel {
@@ -146,6 +154,11 @@ sub set_current_tab {
    $page->{_active} = 1;
 
    $self->update_tabs;
+}
+
+sub close_current_tab {
+   my ($self) = @_;
+   $self->close_chatview ($self->{nb}->get_current_page);
 }
 
 sub update_tabs {
