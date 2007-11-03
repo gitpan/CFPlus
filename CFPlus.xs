@@ -702,7 +702,7 @@ SDL_ListModes (int rgb, int alpha)
         if (m && m != (SDL_Rect **)-1)
           while (*m)
             {
-              if ((*m)->w >= 640 && (*m)->h >= 480)
+              if ((*m)->w >= 800 && (*m)->h >= 600)
                 {
                   AV *av = newAV ();
                   av_push (av, newSViv ((*m)->w));

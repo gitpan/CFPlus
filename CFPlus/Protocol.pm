@@ -21,7 +21,7 @@ sub new {
       setup_req => {
          extmap => 1,
          excmd  => 1,
-         xwidget2 => 1,#d#
+         widget => 1,
          %{$arg{setup_req} || {}},
       },
    );

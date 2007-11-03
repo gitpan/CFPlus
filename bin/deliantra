@@ -2352,7 +2352,7 @@ $SIG{INT} = $SIG{TERM} = sub { exit };
 
    my %DEF_CFG = (
       sdl_mode            => 0,
-      fullscreen          => 0,
+      fullscreen          => 1,
       fast                => 0,
       force_opengl11      => undef,
       texture_compression => 1,
