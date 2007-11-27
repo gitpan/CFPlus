@@ -15,13 +15,13 @@ print <<EOF;
 *** pango-1.12.3, glib-2.10
 *** libsdl, libSDL_mixer, libSDL_image
 
-*** Pod::POM, Compress::LZF, BerkeleyDB, Crossfire, Event, AnyEvent perl modules
+*** Pod::POM, Compress::LZF, BerkeleyDB, Crossfire, EV, AnyEvent perl modules
 
 *** HINT: BerkeleyDB must be linked against version 4.3 or higher of libdb
 
-*** HINT: Debian/Ubuntu users might have luck with:
+*** HINT: Debian/Ubuntu users might have some luck with:
 *** apt-get install perl libpango1.0-dev libglib2.0-dev libsdl1.2-dev
-*** apt-get install libevent-perl libsdl-mixer1.2-dev libsdl-image1.2-dev
+*** apt-get install libsdl-mixer1.2-dev libsdl-image1.2-dev
 *** apt-get install libberkeleydb-perl libwww-perl libdb4.4-dev
 *** apt-get install anyevent-perl
 
@@ -57,8 +57,8 @@ WriteMakefile(
        BerkeleyDB    => 0.27,
        Crossfire     => 1.1,
        Time::HiRes   => 0,
-       Event         => 1.07,
-       AnyEvent      => 0,
+       EV            => 0.9,
+       AnyEvent      => 2.6,
        Compress::LZF => 1.6,
        Pod::POM      => 0.15,
        LWP           => 0,

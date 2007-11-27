@@ -1,5 +1,11 @@
 Revision history for Perl extension CFPlus
 
+0.9956 Tue Nov 27 10:45:35 CET 2007
+	- convert to the high-performance EV event loop, expecting
+          higher performance and compatibility under windows.
+	- the serverlist feature has been disabled due to problems
+          with activestate perl.
+
 0.9955 Sat Nov  3 13:07:57 CET 2007
 	- enable fullscreen by default.
         - use a minimum mode of 800x600.

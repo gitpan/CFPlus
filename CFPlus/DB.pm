@@ -20,7 +20,6 @@ use utf8;
 use Carp ();
 use Storable ();
 use Config;
-use Event ();
 
 use CFPlus;
 
@@ -100,6 +99,7 @@ package CFPlus::DB::Server;
 
 use strict;
 
+use EV ();
 use Fcntl;
 use BerkeleyDB;
 
@@ -151,10 +151,10 @@ our $sync_timer;
 our $write_buf;
 our $read_buf;
 
-our $SYNC = Event->idle (min => 120, max => 180, parked => 1, cb => sub {
+our $SYNC = EV::timer_ns 0, 60, sub {
+   $_[0]->stop;
    CFPlus::DB::Server::req (sync => sub { });
-   $_[0]->w->stop;
-});
+};
 
 sub fh_write {
    my $len = syswrite $FH, $write_buf;
@@ -208,7 +208,7 @@ sub req {
    $CB{$id} = $cb;
 
    $fh_w_watcher->start;
-   $SYNC->start;
+   $SYNC->again unless $SYNC->is_active;
 }
 
 sub do_sync {
@@ -380,13 +380,15 @@ sub run {
                or die "$type: unknown database request type\n";
             my $res = pack "N/a*", Storable::freeze [$id, $cb->(@args)];
             (syswrite $fh, $res) == length $res
-               or die;
+               or die "DB::write: $!";
          }
       };
 
       my $error = $@;
 
       eval {
+         $DB_ENV->txn_checkpoint (0, 0, 0);
+
          undef %DB_TABLE;
          undef $DB_ENV;
 
@@ -401,9 +403,9 @@ sub run {
 
    $CB{die} = sub { die shift };
 
-   $fh_r_watcher = Event->io (fd => $FH, poll => 'r', nice => 1, cb => \&fh_read);
-   $fh_w_watcher = Event->io (fd => $FH, poll => 'w', nice => -1, parked => 1, cb => \&fh_write);
-   $SYNC->start;
+   $fh_r_watcher = EV::io $FH, EV::READ , \&fh_read;
+   $fh_w_watcher = EV::io $FH, EV::WRITE, \&fh_write;
+   $SYNC->again unless $SYNC->is_active;
 }
 
 sub stop {

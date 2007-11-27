@@ -4,7 +4,6 @@ use utf8;
 use strict;
 
 use List::Util ();
-use Event;
 
 use CFPlus;
 use CFPlus::Pod;
@@ -19,7 +18,9 @@ our $BUTTON_STATE;
 
 our %WIDGET; # all widgets, weak-referenced
 
-our $TOOLTIP_WATCHER = Event->idle (min => 1/60, cb => sub {
+our $TOOLTIP_WATCHER = EV::timer_ns 0, 1/60, sub {
+   $_[0]->stop;
+
    if (!$GRAB) {
       for (my $widget = $HOVER; $widget; $widget = $widget->{parent}) {
          if (length $widget->{tooltip}) {
@@ -44,7 +45,7 @@ our $TOOLTIP_WATCHER = Event->idle (min => 1/60, cb => sub {
    $TOOLTIP->hide;
    $TOOLTIP->{owner}->emit ("tooltip_hide") if $TOOLTIP->{owner};
    delete $TOOLTIP->{owner};
-});
+};
 
 sub get_layout {
    my $layout;
@@ -89,7 +90,7 @@ sub check_hover {
       $hover->update if $hover && $hover->{can_hover};
       $HOVER->update if $HOVER && $HOVER->{can_hover};
 
-      $TOOLTIP_WATCHER->start;
+      $TOOLTIP_WATCHER->again;
    }
 }
 
@@ -105,7 +106,7 @@ sub feed_sdl_button_down_event {
       $GRAB = $widget;
       $GRAB->update if $GRAB;
 
-      $TOOLTIP_WATCHER->cb->();
+      $TOOLTIP_WATCHER->trigger;
    }
 
    if ($GRAB) {
@@ -140,7 +141,7 @@ sub feed_sdl_button_up_event {
       $GRAB->update if $GRAB;
 
       check_hover $widget;
-      $TOOLTIP_WATCHER->cb->();
+      $TOOLTIP_WATCHER->trigger;
    }
 }
 
@@ -310,7 +311,7 @@ sub set_invisible {
    undef $GRAB  if $GRAB  == $self;
    undef $HOVER if $HOVER == $self;
 
-   $CFPlus::UI::TOOLTIP_WATCHER->cb->()
+   $CFPlus::UI::TOOLTIP_WATCHER->trigger
       if $TOOLTIP->{owner} == $self;
 
    $self->emit ("focus_out");
@@ -441,7 +442,7 @@ sub set_tooltip {
 
    if ($CFPlus::UI::TOOLTIP->{owner} == $self) {
       delete $CFPlus::UI::TOOLTIP->{owner};
-      $CFPlus::UI::TOOLTIP_WATCHER->cb->();
+      $CFPlus::UI::TOOLTIP_WATCHER->trigger;
    }
 }
 
@@ -3675,23 +3676,20 @@ sub new {
       CFPlus::weaken (my $widget = $self);
 
       $widget->{animspeed} = List::Util::max 0.05, $widget->{animspeed};
-      $widget->{anim_start} = $self->{animspeed} * int Event::time / $self->{animspeed};
-      $self->{timer} = Event->timer (
-         parked   => 1,
-         cb       => sub {
-            return unless $::CONN;
+      $widget->{anim_start} = $self->{animspeed} * int EV::now / $self->{animspeed};
+      $self->{timer} = EV::timer_ns 0, 0, sub {
+         return unless $::CONN;
 
-            my $w = $widget
-               or return;
+         my $w = $widget
+            or return;
 
-            ++$w->{frame};
-            $w->update_face;
+         ++$w->{frame};
+         $w->update_face;
 
-            # somehow, $widget can go away
-            $w->update;
-            $w->update_timer;
-         },
-      );
+         # somehow, $widget can go away
+         $w->update;
+         $w->update_timer;
+      };
 
       $self->update_face;
       $self->update_timer;
@@ -3706,10 +3704,10 @@ sub update_timer {
    return unless $self->{timer};
 
    if ($self->{visible}) {
-      $self->{timer}->at (
+      $self->{timer}->set (
          $self->{anim_start}
          + $self->{animspeed}
-           * int 1.5 + (Event::time - $self->{anim_start}) / $self->{animspeed}
+           * int 1.5 + (EV::now - $self->{anim_start}) / $self->{animspeed}
       );
       $self->{timer}->start;
    } else {
@@ -4168,7 +4166,7 @@ sub new {
 
    CFPlus::weaken (my $this = $self);
 
-   $self->{timer} = Event->timer (after => 1, interval => 1, cb => sub { $this->reorder });
+   $self->{timer} = EV::timer 1, 1, sub { $this->reorder };
 
    $self
 }
@@ -4186,14 +4184,14 @@ sub reorder {
       delete $self->{item}{$k} if $v->{timeout} < $NOW;
    }
 
+   $self->{timer}->set (1, 1);
+
    my @widgets;
 
    my @items = sort {
                   $a->{pri} <=> $b->{pri}
                      or $b->{id} <=> $a->{id}
                } values %{ $self->{item} };
-
-   $self->{timer}->interval (1);
 
    my $count = 10 + 1;
    for my $item (@items) {
@@ -4227,7 +4225,7 @@ sub reorder {
          $label->update;
          $label->set_max_size (undef, $label->{req_h} * $diff)
             if $diff < 1;
-         $self->{timer}->interval (1/30);
+         $self->{timer}->set (1/30, 1/30);
       } else {
          $label->{fg}[3] = $item->{fg}[3] || 1;
       }
