@@ -122,7 +122,7 @@ sub editor_invoke {
             File::Path::mkpath (File::Basename::dirname ($mappath));
             open my $fh, ">:raw:perlio", "$mappath.meta"
                or die "$mappath.meta: $!\n";
-            print $fh CFPlus::to_json $meta;
+            print $fh CFPlus::encode_json $meta;
             close $fh;
             open my $fh, ">:raw:perlio:utf8", $mappath
                or die "$mappath: $!\n";

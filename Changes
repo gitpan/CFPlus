@@ -1,5 +1,9 @@
 Revision history for Perl extension CFPlus
 
+0.9957 Wed Dec  5 20:06:05 CET 2007
+	- switch to new JSON::XS 2.01 API.
+        - add some debugging hooks.
+
 0.9956 Tue Nov 27 10:45:35 CET 2007
 	- convert to the high-performance EV event loop, expecting
           higher performance and compatibility under windows.

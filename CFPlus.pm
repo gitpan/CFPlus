@@ -17,7 +17,7 @@ package CFPlus;
 use Carp ();
 
 BEGIN {
-   $VERSION = '0.9956';
+   $VERSION = '0.9957';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;
@@ -30,7 +30,7 @@ use Pod::POM ();
 use File::Path ();
 use Storable (); # finally
 use Fcntl ();
-use JSON::XS qw(to_json from_json);
+use JSON::XS qw(encode_json decode_json);
 
 =item guard { BLOCK }
 
@@ -167,7 +167,7 @@ sub read_cfg {
       utf8::decode $CFG;
       $::CFG = YAML::Load ($CFG);
    } elsif ($CFG =~ /^\{/) {
-      $::CFG = from_json $CFG;
+      $::CFG = decode_json $CFG;
    } else {
       $::CFG = eval $CFG; ## todo comaptibility cruft
    }
@@ -180,7 +180,7 @@ sub write_cfg {
 
    open my $fh, ">:utf8", $file
       or return;
-   print $fh to_json $::CFG;
+   print $fh encode_json $::CFG;
 }
 
 sub http_proxy {

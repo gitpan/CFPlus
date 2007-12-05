@@ -55,14 +55,14 @@ WriteMakefile(
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
        BerkeleyDB    => 0.27,
-       Crossfire     => 1.1,
+       Crossfire     => 1.13,
        Time::HiRes   => 0,
        EV            => 0.9,
        AnyEvent      => 2.6,
        Compress::LZF => 1.6,
        Pod::POM      => 0.15,
        LWP           => 0,
-       JSON::XS      => 1.5,
+       JSON::XS      => 2.01,
     },
     depend    => {
        "CFPlus.o" => 'glfunc.h pangoopengl.h pango-font.c pango-fontmap.c pango-render.c texcache.c rendercache.c',

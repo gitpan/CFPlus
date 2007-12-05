@@ -1,5 +1,14 @@
 #!/opt/bin/perl
 
+if ($ENV{DELIANTRA_CORO_DEBUG}) {
+   eval '
+      use Coro;
+      use Coro::EV;
+      use Coro::Debug;
+      our $debug = new_unix_server Coro::Debug "/tmp/dc";
+   ';
+}
+
 # do splash-screen thingy on win32
 my $startup_done = sub { };
 BEGIN {
@@ -251,7 +260,7 @@ sub audio_sound_push($) {
          CFPlus::DB::get res_data => $meta->{name}, sub {
             my $rwops = new CFPlus::RW $_[0];
             my $chunk = new CFPlus::MixChunk $rwops
-               or Carp::confess "sound face " . (JSON::XS::to_json $meta) . " unloadable: " . CFPlus::Mix_GetError;
+               or Carp::confess "sound face " . (JSON::XS::encode_json $meta) . " unloadable: " . CFPlus::Mix_GetError;
             $chunk->volume (($meta->{data}{volume} || 1) * 128);
             $AUDIO_CHUNK{$face} = $chunk;
 
@@ -992,7 +1001,7 @@ sub audio_setup {
       options => [
          [0, "default"      , "Use System Default"],
          [1, "Mono"         , "Mono (single channel, low quality)"],
-         [2, "Stereo"       , "Stereo (dual channe, standard quality)"],
+         [2, "Stereo"       , "Stereo (dual channel, standard quality)"],
          [4, "4 Ch Surround", "4 Channel Surround Sound (3d sound, high quality)"],
          [6, "6 Ch Surround", "6 Channel Surround Sound (3d sound + center + lfe)"],
       ],
@@ -1343,7 +1352,7 @@ sub update_metaserver {
    CFPlus::background {
       my $ua = CFPlus::lwp_useragent;
 
-      CFPlus::background_msg CFPlus::from_json +(CFPlus::lwp_check $ua->get ($META_SERVER))->decoded_content;
+      CFPlus::background_msg CFPlus::decode_json +(CFPlus::lwp_check $ua->get ($META_SERVER))->decoded_content;
    } sub {
       my ($msg) = @_;
       if ($msg) {
