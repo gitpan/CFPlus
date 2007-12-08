@@ -141,7 +141,7 @@ sub feed_sdl_button_up_event {
       $GRAB->update if $GRAB;
 
       check_hover $widget;
-      $TOOLTIP_WATCHER->trigger;
+      $TOOLTIP_WATCHER->invoke;
    }
 }
 
@@ -311,7 +311,7 @@ sub set_invisible {
    undef $GRAB  if $GRAB  == $self;
    undef $HOVER if $HOVER == $self;
 
-   $CFPlus::UI::TOOLTIP_WATCHER->trigger
+   $CFPlus::UI::TOOLTIP_WATCHER->invoke
       if $TOOLTIP->{owner} == $self;
 
    $self->emit ("focus_out");
@@ -442,7 +442,7 @@ sub set_tooltip {
 
    if ($CFPlus::UI::TOOLTIP->{owner} == $self) {
       delete $CFPlus::UI::TOOLTIP->{owner};
-      $CFPlus::UI::TOOLTIP_WATCHER->trigger;
+      $CFPlus::UI::TOOLTIP_WATCHER->invoke;
    }
 }
 

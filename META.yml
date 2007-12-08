@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                CFPlus
-version:             0.9958
+version:             0.9959
 abstract:            ~
 license:             ~
 generated_by:        ExtUtils::MakeMaker version 6.32
