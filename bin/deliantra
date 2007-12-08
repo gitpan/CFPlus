@@ -346,25 +346,25 @@ sub audio_music_push {
    my $fade_out;
 
    if (@MUSIC_JINGLE) {
-      @MUSIC_HAVE = $MUSIC_JINGLE[0];
       $fade_out = 333;
+      @MUSIC_HAVE = $MUSIC_JINGLE[0];
+
    } else {
       return unless $CFG->{bgm_enable};
 
-      my @have =
+      $fade_out = 700;
+
+      @MUSIC_HAVE =
          grep $_ && $_->{data},
             map $CONN->{face}[$_],
                @$MUSIC_WANT;
 
       # randomize music a bit so that the order is not always the same
-      $_->{stop_time} ||= rand for @have;
-
-      @MUSIC_HAVE = @have
-         if @have;
+      $_->{stop_time} ||= rand for @MUSIC_HAVE;
 
       # default MUSIC_HAVE == MUSIC_DEFAULT
-      @MUSIC_HAVE = { path => CFPlus::find_rcfile "music/$MUSIC_DEFAULT" } unless @MUSIC_HAVE;
-      $fade_out = 700;
+      @MUSIC_HAVE = { path => CFPlus::find_rcfile "music/$MUSIC_DEFAULT" }
+         unless @MUSIC_HAVE;
    }
    
    # if the currently playing song is acceptable, let it continue

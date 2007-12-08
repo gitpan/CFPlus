@@ -981,7 +981,7 @@ not be used when the opponent attacks with spells.
 =head1 Authors
 
 Parts of this document were originally taken from the crossfire server
-help files with unknwon authors.
+help files with unknown authors.
 
 Adapted for use by I<deliantra>, enhanced and corrected by Pippijn van
 Steenhoven and Marc A. Lehmann.

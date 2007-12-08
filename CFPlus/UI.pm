@@ -106,7 +106,7 @@ sub feed_sdl_button_down_event {
       $GRAB = $widget;
       $GRAB->update if $GRAB;
 
-      $TOOLTIP_WATCHER->trigger;
+      $TOOLTIP_WATCHER->invoke;
    }
 
    if ($GRAB) {

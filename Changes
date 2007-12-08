@@ -1,5 +1,10 @@
 Revision history for Perl extension CFPlus
 
+0.9958 Sat Dec  8 19:37:33 CET 2007
+	- fix a longstanding bug where a jingle would be played
+          repeatedly if no server-provided music was available.
+        - update fro EV-1.72 API.
+
 0.9957 Wed Dec  5 20:06:05 CET 2007
 	- switch to new JSON::XS 2.01 API.
         - add some debugging hooks.

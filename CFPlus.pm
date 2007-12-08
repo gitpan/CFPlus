@@ -17,7 +17,7 @@ package CFPlus;
 use Carp ();
 
 BEGIN {
-   $VERSION = '0.9957';
+   $VERSION = '0.9958';
 
    use XSLoader;
    XSLoader::load "CFPlus", $VERSION;

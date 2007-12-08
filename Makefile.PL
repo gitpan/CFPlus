@@ -57,7 +57,7 @@ WriteMakefile(
        BerkeleyDB    => 0.27,
        Crossfire     => 1.13,
        Time::HiRes   => 0,
-       EV            => 0.9,
+       EV            => 1.72,
        AnyEvent      => 2.6,
        Compress::LZF => 1.6,
        Pod::POM      => 0.15,
