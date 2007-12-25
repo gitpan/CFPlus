@@ -169,6 +169,8 @@ sub update_widgets {
           : $self->{flags} & F_MAGIC  ? [0.2, 0.2, 1, 0.5]
           : undef;
 
+   my $desc = CFPlus::Item::desc_string $self;
+
    $self->{face_widget} ||= new CFPlus::UI::Face 
       can_events => 1,
       can_hover  => 1,
@@ -180,12 +182,13 @@ sub update_widgets {
    $self->{face_widget}{face}      = $self->{face};
    $self->{face_widget}{anim}      = $self->{anim};
    $self->{face_widget}{animspeed} = $self->{animspeed};
-   $self->{face_widget}->set_tooltip (
-      "<b>Face/Animation.</b>\n"
-    . "Item uses face #$self->{face}. "
-    . ($self->{animspeed} ? "Item uses animation #$self->{anim} at " . (1 / $self->{animspeed}) . "fps. " : "Item is not animated. ")
-    . "\n\n$tooltip_std"
-   );
+#   $self->{face_widget}->set_tooltip (
+#      "<b>Face/Animation.</b>\n"
+#    . "Item uses face #$self->{face}. "
+#    . ($self->{animspeed} ? "Item uses animation #$self->{anim} at " . (1 / $self->{animspeed}) . "fps. " : "Item is not animated. ")
+#    . "\n\n$tooltip_std"
+#   );
+   $self->{face_widget}->set_tooltip ("<b>$desc</b>\n\n$tooltip_std");
    
    $self->{desc_widget} ||= new CFPlus::UI::Label
       can_events => 1,
@@ -208,7 +211,6 @@ sub update_widgets {
       },
    ;
 
-   my $desc = CFPlus::Item::desc_string $self;
    $self->{desc_widget}{bg} = $bg;
    $self->{desc_widget}->set_text ($desc);
 

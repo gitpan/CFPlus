@@ -54,7 +54,7 @@ WriteMakefile(
     EXE_FILES => [qw(bin/deliantra)],
     VERSION_FROM => "CFPlus.pm",
     PREREQ_PM => {
-       BerkeleyDB    => 0.27,
+       BDB           => 1.4,
        Crossfire     => 1.13,
        Time::HiRes   => 0,
        EV            => 1.72,

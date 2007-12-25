@@ -85,9 +85,12 @@ with other modifiers, too.
 
 =item Keypad-B<5> - use your current range slot on yourself or the space where you are standing.
 
-=item B<+>, Keypad-B<+> - rotate through your range weapons.
+=item Keypad-B<+> - toggle between your range and combat slots
 
-=item B<->, Keypad-B<-> - rotate through your range weapons, the other way round.
+Only one of them can be active at any specific time. Deliantra
+automatically switches to the right slot when you attack, but sometimes a
+weapon (combat slot) has some specific effect (for example, lets you heal
+faster) which would not be working when your range slot is active.
 
 =item B<'> - open the completer.
 

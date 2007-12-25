@@ -1,5 +1,13 @@
 Revision history for Perl extension CFPlus
 
+0.9960 Tue Dec 25 10:38:17 CET 2007
+	- fixed item animation by taking advantage of ev_periodic.
+	- document KP+ better.
+        - update to EV 2.0.
+        - do not crash when an invisible widget wants its global
+          coordinate or vice versa.
+        - further optimise face loading from database.
+
 0.9959 Sat Dec  8 20:16:45 CET 2007
 	- grr, really update for EV-1.72.
 

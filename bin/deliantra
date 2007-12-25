@@ -471,11 +471,11 @@ sub server_query {
    # FIXME: a very ugly hack to wait for stat update #d#
    if ($prompt =~ /roll new stats/ and not $conn->{stat_change_with}) {
       unless ($QUERY_TIMER) {
-         $QUERY_TIMER =
-            EV::timer 1, 0, sub {
-               server_query ($conn, $flags, $prompt, 1);
-               $QUERY_TIMER = undef
-            };
+         $QUERY_TIMER = EV::timer 1, 0, sub {
+            server_query ($conn, $flags, $prompt, 1);
+            $QUERY_TIMER = undef
+         };
+
          return;
       }
    }
@@ -2350,7 +2350,10 @@ sub animation_stop {
 
 #############################################################################
 
-$SIG{INT} = $SIG{TERM} = sub { exit };
+$SIG{INT} = $SIG{TERM} = sub {
+   EV::unloop;
+   #d# TODO calling exit here hangs the process in some futex
+};
 
 {
    CFPlus::read_cfg "$Crossfire::VARDIR/cfplusrc";

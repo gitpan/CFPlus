@@ -1,13 +1,13 @@
 --- #YAML:1.0
 name:                CFPlus
-version:             0.9959
+version:             0.9960
 abstract:            ~
 license:             ~
 generated_by:        ExtUtils::MakeMaker version 6.32
 distribution_type:   module
 requires:     
     AnyEvent:                      2.6
-    BerkeleyDB:                    0.27
+    BDB:                           1.4
     Compress::LZF:                 1.6
     Crossfire:                     1.13
     EV:                            1.72

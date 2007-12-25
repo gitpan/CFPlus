@@ -615,8 +615,7 @@ sub feed_map1a {
 
    if ($delay) {
       # delay the map drawing a tiny bit in the hope of getting the missing fetched
-      my $delay_draw; $delay_draw = EV::timer 0.03, 0, sub {
-         undef $delay_draw;
+      EV::once undef, 0, 0.03, sub {
          $self->{map_widget}->update
             if $self->{map_widget};
       };

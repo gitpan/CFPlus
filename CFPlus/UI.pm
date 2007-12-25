@@ -450,7 +450,7 @@ sub set_tooltip {
 sub coord2local {
    my ($self, $x, $y) = @_;
 
-   Carp::confess unless $self->{parent};#d#
+   return (undef, undef) unless $self->{parent};
 
    $self->{parent}->coord2local ($x  - $self->{x}, $y - $self->{y})
 }
@@ -459,7 +459,7 @@ sub coord2local {
 sub coord2global {
    my ($self, $x, $y) = @_;
 
-   Carp::confess unless $self->{parent};#d#
+   return (undef, undef) unless $self->{parent};
 
    $self->{parent}->coord2global ($x + $self->{x}, $y + $self->{y})
 }
@@ -3675,9 +3675,8 @@ sub new {
    if ($self->{anim} && $self->{animspeed}) {
       CFPlus::weaken (my $widget = $self);
 
-      $widget->{animspeed} = List::Util::max 0.05, $widget->{animspeed};
-      $widget->{anim_start} = $self->{animspeed} * int EV::now / $self->{animspeed};
-      $self->{timer} = EV::timer_ns 0, 0, sub {
+      $self->{animspeed} = List::Util::max 0.05, $self->{animspeed};
+      $self->{timer} = EV::periodic_ns 0, $self->{animspeed}, undef, sub {
          return unless $::CONN;
 
          my $w = $widget
@@ -3704,11 +3703,6 @@ sub update_timer {
    return unless $self->{timer};
 
    if ($self->{visible}) {
-      $self->{timer}->set (
-         $self->{anim_start}
-         + $self->{animspeed}
-           * int 1.5 + (EV::now - $self->{anim_start}) / $self->{animspeed}
-      );
       $self->{timer}->start;
    } else {
       $self->{timer}->stop;
@@ -4183,8 +4177,6 @@ sub reorder {
    while (my ($k, $v) = each %{ $self->{item} }) {
       delete $self->{item}{$k} if $v->{timeout} < $NOW;
    }
-
-   $self->{timer}->set (1, 1);
 
    my @widgets;
 

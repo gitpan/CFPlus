@@ -20,10 +20,174 @@ use utf8;
 use Carp ();
 use Storable ();
 use Config;
+use BDB;
 
 use CFPlus;
 
-our $DB_HOME = "$Crossfire::VARDIR/cfplus-$BerkeleyDB::db_version-$Config{archname}";
+our $DB_HOME = "$Crossfire::VARDIR/cfplus-" . BDB::VERSION . "-$Config{archname}";
+
+our $DB_ENV;
+our $DB_STATE;
+our %DB_TABLE;
+
+sub open_db {
+   mkdir $DB_HOME, 0777;
+
+   $DB_ENV = db_env_create;
+
+   $DB_ENV->set_errfile (\*STDERR);
+   $DB_ENV->set_msgfile (\*STDERR);
+   $DB_ENV->set_verbose (-1, 1);
+
+   $DB_ENV->set_flags (BDB::AUTO_COMMIT | BDB::LOG_AUTOREMOVE | BDB::TXN_WRITE_NOSYNC);
+   $DB_ENV->set_cachesize (0, 2048 * 1024, 0);
+
+   db_env_open $DB_ENV, $DB_HOME,
+               BDB::CREATE | BDB::REGISTER | BDB::RECOVER | BDB::INIT_MPOOL | BDB::INIT_LOCK | BDB::INIT_TXN,
+               0666;
+
+   $! and die "cannot open database environment $DB_HOME: " . BDB::strerror;
+
+   1
+}
+
+sub table($) {
+   $DB_TABLE{$_[0]} ||= do {
+      my ($table) = @_;
+
+      $table =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
+
+      my $db = db_create $DB_ENV;
+      $db->set_flags (BDB::CHKSUM);
+
+      db_open $db, undef, $table, undef, BDB::BTREE,
+              BDB::AUTO_COMMIT | BDB::CREATE | BDB::READ_UNCOMMITTED, 0666;
+
+      $! and "unable to open/create database table $_[0]: ". BDB::strerror;
+
+      $db
+   }
+}
+
+#############################################################################
+
+unless (eval { open_db }) {
+   warn "$@";#d#
+   eval { File::Path::rmtree $DB_HOME };
+   open_db;
+}
+
+our $WATCHER = EV::io BDB::poll_fileno, EV::READ, \&BDB::poll_cb;
+
+our $SYNC = EV::timer_ns 0, 60, sub {
+   $_[0]->stop;
+   db_env_txn_checkpoint $DB_ENV, 0, 0, 0, sub { };
+};
+
+our $tilemap;
+
+sub exists($$$) {
+   my ($db, $key, $cb) = @_;
+
+   my $data;
+   db_get table $db, undef, $key, $data, 0, sub {
+      $cb->($! ? () : length $data);
+   };
+}
+
+sub get($$$) {
+   my ($db, $key, $cb) = @_;
+
+   my $data;
+   db_get table $db, undef, $key, $data, 0, sub {
+      $cb->($! ? () : $data);
+   };
+}
+
+sub put($$$$) {
+   my ($db, $key, $data, $cb) = @_;
+
+   db_put table $db, undef, $key, $data, 0, sub {
+      $cb->($!);
+      $SYNC->again unless $SYNC->is_active;
+   };
+}
+
+sub do_table {
+   my ($db, $cb) = @_;
+
+   $db = table $db;
+
+   my $cursor = $db->cursor;
+   my %kv;
+
+   for (;;) {
+      db_c_get $cursor, my $k, my $v, BDB::NEXT;
+      last if $!;
+      $kv{$k} = $v;
+   }
+
+   $cb->(\%kv);
+}
+
+sub do_get_tile_id {
+   my ($name, $cb) = @_;
+
+   my $table = table "facemap";
+   my $id;
+
+   db_get $table, undef, $name, $id, 0;
+   return $cb->($id) unless $!;
+
+   for (1..100) {
+      my $txn = $DB_ENV->txn_begin;
+      db_get $table, $txn, id => $id, 0;
+
+      $id = 64 if $id < 64;
+
+      ++$id;
+
+      db_put $table, $txn, id => $id, 0;
+      db_txn_finish $txn;
+
+      $SYNC->again unless $SYNC->is_active;
+
+      return $cb->($id) unless $!;
+
+      select undef, undef, undef, 0.01 * rand;
+   }
+
+   die "maximum number of transaction retries reached - database problems?";
+}
+
+sub get_tile_id_sync($) {
+   my ($name) = @_;
+
+   # fetch the full face table first
+   unless ($tilemap) {
+      do_table facemap => sub {
+         $tilemap = $_[0];
+         delete $tilemap->{id};
+         my %maptile = reverse %$tilemap;#d#
+         if ((scalar keys %$tilemap) != (scalar keys %maptile)) {#d#
+            $tilemap = { };#d#
+            CFPlus::error "FATAL: facemap is not a 1:1 mapping, please report this and delete your $DB_HOME directory!\n";#d#
+         }#d#
+      };
+      BDB::flush;
+   }
+
+   $tilemap->{$name} ||= do {
+      my $id;
+      do_get_tile_id $name, sub {
+         $id = $_[0];
+      };
+      BDB::flush;
+      $id
+   }
+}
+
+#############################################################################
 
 sub path_of_res($) {
    utf8::downgrade $_[0]; # bug in unpack "H*"
@@ -34,18 +198,6 @@ sub sync {
    # for debugging
    #CFPlus::DB::Server::req (sync => sub { });
    CFPlus::DB::Server::sync ();
-}
-
-sub exists($$$) {
-   CFPlus::DB::Server::req (exists => @_);
-}
-
-sub get($$$) {
-   CFPlus::DB::Server::req (get => @_);
-}
-
-sub put($$$$) {
-   CFPlus::DB::Server::req (put => @_);
 }
 
 sub unlink($$) {
@@ -68,80 +220,12 @@ sub logprint($$$) {
    CFPlus::DB::Server::req (logprint => @_);
 }
 
-our $tilemap;
-
-sub get_tile_id_sync($) {
-   my ($name) = @_;
-
-   # fetch the full face table first
-   unless ($tilemap) {
-      CFPlus::DB::Server::req (table => facemap => sub {
-         $tilemap = $_[0];
-         delete $tilemap->{id};
-         my %maptile = reverse %$tilemap;#d#
-         if ((scalar keys %$tilemap) != (scalar keys %maptile)) {#d#
-            $tilemap = { };#d#
-            CFPlus::error "FATAL: facemap is not a 1:1 mapping, please report this and delete your $DB_HOME directory!\n";#d#
-         }#d#
-      });
-      sync;
-   }
-
-   $tilemap->{$name} ||= do {
-      my $id;
-      CFPlus::DB::Server::req (get_tile_id => $name, sub { $id = $_[0] });
-      sync;
-      $id
-   }
-}
-
 package CFPlus::DB::Server;
 
 use strict;
 
 use EV ();
 use Fcntl;
-use BerkeleyDB;
-
-our $DB_ENV;
-our $DB_STATE;
-our %DB_TABLE;
-
-sub open_db {
-   mkdir $DB_HOME, 0777;
-   my $recover = $BerkeleyDB::db_version >= 4.4 
-                 ? eval "DB_REGISTER | DB_RECOVER"
-                 : 0;
-
-   $DB_ENV = new BerkeleyDB::Env
-                    -Home => $DB_HOME,
-                    -Cachesize => 8_000_000,
-                    -ErrFile => "$DB_HOME/errorlog.txt",
-#                 -ErrPrefix => "DATABASE",
-                    -Verbose => 1,
-                    -Flags => DB_CREATE | DB_RECOVER | DB_INIT_MPOOL | DB_INIT_LOCK | DB_INIT_TXN | $recover,
-                    -SetFlags => DB_AUTO_COMMIT | DB_LOG_AUTOREMOVE | DB_TXN_WRITE_NOSYNC,
-                       or die "unable to create/open database home $DB_HOME: $BerkeleyDB::Error";
-
-   1
-}
-
-sub table($) {
-   $DB_TABLE{$_[0]} ||= do {
-      my ($table) = @_;
-
-      $table =~ s/([^a-zA-Z0-9_\-])/sprintf "=%x=", ord $1/ge;
-
-      new BerkeleyDB::Btree
-         -Env      => $DB_ENV,
-         -Filename => $table,
-#      -Filename => "database",
-#      -Subname  => $table,
-         -Property => DB_CHKSUM,
-         -Flags    => DB_AUTO_COMMIT | DB_CREATE | DB_UPGRADE,
-            or die "unable to create/open database table $_[0]: $BerkeleyDB::Error"
-   }
-}
 
 our %CB;
 our $FH;
@@ -150,11 +234,6 @@ our ($fh_r_watcher, $fh_w_watcher);
 our $sync_timer;
 our $write_buf;
 our $read_buf;
-
-our $SYNC = EV::timer_ns 0, 60, sub {
-   $_[0]->stop;
-   CFPlus::DB::Server::req (sync => sub { });
-};
 
 sub fh_write {
    my $len = syswrite $FH, $write_buf;
@@ -208,81 +287,6 @@ sub req {
    $CB{$id} = $cb;
 
    $fh_w_watcher->start;
-   $SYNC->again unless $SYNC->is_active;
-}
-
-sub do_sync {
-   $DB_ENV->txn_checkpoint (0, 0, 0);
-   ()
-}
-
-sub do_exists {
-   my ($db, $key) = @_;
-
-   utf8::downgrade $key;
-   my $data;
-   (table $db)->db_get ($key, $data) == 0
-      ? length $data
-      : ()
-}
-
-sub do_get {
-   my ($db, $key) = @_;
-
-   utf8::downgrade $key;
-   my $data;
-   (table $db)->db_get ($key, $data) == 0
-      ? $data
-      : ()
-}
-
-sub do_put {
-   my ($db, $key, $data) = @_;
-
-   utf8::downgrade $key;
-   utf8::downgrade $data;
-   (table $db)->db_put ($key => $data)
-}
-
-sub do_table {
-   my ($db) = @_;
-
-   $db = table $db;
-
-   my $cursor = $db->db_cursor;
-   my %kv;
-   my ($k, $v);
-   $kv{$k} = $v while $cursor->c_get ($k, $v, BerkeleyDB::DB_NEXT) == 0;
-
-   \%kv
-}
-
-sub do_get_tile_id {
-   my ($name) = @_;
-
-   my $id;
-   my $table = table "facemap";
-
-   return $id
-      if $table->db_get ($name, $id) == 0;
-
-   for (1..100) {
-      my $txn = $DB_ENV->txn_begin;
-      my $status = $table->db_get (id => $id);
-      if ($status == 0 || $status == BerkeleyDB::DB_NOTFOUND) {
-         $id = ($id || 64) + 1;
-         if ($table->db_put (id => $id) == 0
-             && $table->db_put ($name => $id) == 0) {
-            $txn->txn_commit;
-
-            return $id;
-         }
-      }
-      $txn->txn_abort;
-      select undef, undef, undef, 0.01 * rand;
-   }
-
-   die "maximum number of transaction retries reached - database problems?";
 }
 
 sub do_unlink {
@@ -361,11 +365,6 @@ sub run {
       eval {
          close $FH;
 
-         unless (eval { open_db }) {
-            eval { File::Path::rmtree $DB_HOME };
-            open_db;
-         }
-
          while () {
             4 == read $fh, my $len, 4
                or last;
@@ -387,13 +386,11 @@ sub run {
       my $error = $@;
 
       eval {
-         $DB_ENV->txn_checkpoint (0, 0, 0);
-
-         undef %DB_TABLE;
-         undef $DB_ENV;
-
          Storable::store_fd [die => $error], $fh;
       };
+
+      warn $error
+         if $error;
 
       CFPlus::_exit 0;
    }
@@ -405,7 +402,6 @@ sub run {
 
    $fh_r_watcher = EV::io $FH, EV::READ , \&fh_read;
    $fh_w_watcher = EV::io $FH, EV::WRITE, \&fh_write;
-   $SYNC->again unless $SYNC->is_active;
 }
 
 sub stop {
